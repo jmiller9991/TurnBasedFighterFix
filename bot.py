@@ -1121,7 +1121,7 @@ async def setup(ctx):
             test6 = True
 
 
-    #TODO if the player chooses COMPROLL, ask about stat to add to roll
+    # if the player chooses COMPROLL, ask about stat to add to roll
     if comp_rolls:
         await ctx.send('Since you selected to use a competitive roll system, select what stat you want the roll to be based off of. If you want the roll to be a straight roll, type NONE.')
 
