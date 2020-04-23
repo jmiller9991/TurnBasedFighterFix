@@ -1376,4 +1376,4 @@ async def test(ctx):
 #   OTHER IMPORTANT CODE                                                                                               #
 ########################################################################################################################
 
-client.run('NjY5MDI4MTYwNzc5ODQ1NjUy.Xpv63Q.RGbpyytbAzGrI5aDka-WIFBf7KM')
+client.run('TOKEN')
