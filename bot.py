@@ -510,7 +510,7 @@ async def on_guild_remove(guild):
 
     gld_name.pop(str(guild.id))
 
-    with open('ep.json', 'w') as f:
+    with open('goldname.json', 'w') as f:
         json.dump(gld_name, f, indent=4)
 
     #Remove hp name for bot
@@ -574,14 +574,9 @@ async def on_guild_remove(guild):
     cursor.execute(f'DELETE FROM player_potion WHERE guild_id = {guild.id}')
     # Delete from player_gold
     cursor.execute(f'DELETE FROM player_gold WHERE guild_id = {guild.id}')
-
-    for channel in guild.text_channels:
-        if channel.permissions_for(guild.me).send_messages:
-            await channel.send(f'''
-              ```Thank you for using the bot!```
-              ''')
-        break
-
+    db.commit()
+    cursor.close()
+    db.close()
 
 @client.event
 async def on_member_join(member):
@@ -777,12 +772,11 @@ async def setup(ctx):
 
 
     #Stats list
-    await ctx.send('''Alright, now that the names are sorted, lets give your stats a name.
-                      Stats are used to determine your characters abilities. You have six stats and must give names to all six.
-                      However, if you desire, you can leave some with the name of NOTHING if you don't want it to do anything. 
-                      Please format the stats name in the following manner. stat1,stat2,stat3,stat4,stat5,stat6. 
-                  ''')
+    await ctx.send('''Alright, now that the names are sorted, lets give your stats a name. Stats are used to determine your characters abilities. You have six stats and must give names to all six.
+                    However, if you desire, you can leave some with the name of NOTHING if you don't want it to do anything. Please format the stats name in the following manner. stat1,stat2,stat3,stat4,stat5,stat6. 
+                   ''')
 
+    # remove commas from stats
     test = True
     while(test):
         statstring = await client.wait_for("message", check=check)
@@ -804,7 +798,14 @@ async def setup(ctx):
             cursor.close()
             db.close()
 
-            await ctx.send(f'Stat values are stat1: {x[0]}, stat2: {x[1]}, stat3: {x[2]}, stat4: {x[3]}, stat5: {x[4]}, stat6: {x[5]}. Don\'t worry, this can be changed later if they are incorrect.')
+            stat1 = x[0].rstrip(',')
+            stat2 = x[1].rstrip(',')
+            stat3 = x[2].rstrip(',')
+            stat4 = x[3].rstrip(',')
+            stat5 = x[4].rstrip(',')
+            stat6 = x[5].rstrip(',')
+
+            await ctx.send(f'Stat values are stat1: {stat1}, stat2: {stat2}, stat3: {stat3}, stat4: {stat4}, stat5: {stat5}, stat6: {stat6}. Don\'t worry, this can be changed later if they are incorrect.')
 
             test = False
 
@@ -843,7 +844,7 @@ async def setup(ctx):
                 x = dice.split('d')
 
                 if can_be_int(x[0]) and can_be_int(x[1]):
-                    if (x[0] > 0) and (x[1] > 0):
+                    if (int(x[0]) > 0) and (int(x[1]) > 0):
                         # Stat DB dice type to dice
                         db = sqlite3.connect('main.sqlite')
                         cursor = db.cursor()
@@ -1083,7 +1084,8 @@ async def setup(ctx):
     while(test6):
         # read in string
         ac_comp = await client.wait_for("message", check=check)
-        ac_comp.content
+        ac_comp = ac_comp.content
+
 
         #check if correct
         if ac_comp == "AC":
@@ -1367,6 +1369,8 @@ async def setup(ctx):
             await ctx.send("The stat does not match your stat names! Please try again!")
             test9 = True
 
+
+    await ctx.send('Everything should be now set up and working!')
 
 @client.command()
 async def test(ctx):
