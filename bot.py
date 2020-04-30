@@ -103,6 +103,15 @@ async def roll(dice : str):
             return dice
 
 
+async def can_list_be_int(string_list):
+    correct = True
+    for i in string_list:
+        if can_be_int(i):
+            correct = True
+        else:
+            return False
+        return correct
+
 client = commands.Bot(command_prefix=get_prefix)
 
 
@@ -158,6 +167,7 @@ async def on_ready():
             condition_effect_roll TEXT,
             condition_gain_loss TEXT,
             condition_effect_stat TEXT,
+            val_removed TEXT,
             cause_lose_turn TEXT,
             condition_desc TEXT
         )
@@ -196,7 +206,6 @@ async def on_ready():
             stat_spell_save TEXT,
             unarmed_attack_damage TEXT,
             spell_array TEXT,
-            class_ac_roll_stat TEXT,
             start_weapon TEXT,
             start_armor TEXT,
             start_items TEXT,
@@ -211,8 +220,6 @@ async def on_ready():
             guild_id TEXT,
             weapon_name TEXT,
             weapon_type TEXT,
-            weapon_plus_damage TEXT,
-            weapon_damage_type TEXT,
             weapon_cost TEXT,
             weapon_desc TEXT
         )
@@ -564,13 +571,33 @@ async def on_guild_remove(guild):
 
 @client.event
 async def on_member_join(member):
-    # TODO tell people how to make a character
+    ment = member.mention
+    for channel in member.guild.text_channels:
+        if channel.permissions_for(member.guild.me).send_messages:
+           channel.send(f'''Hello {ment}! Welcome to a server running the Turn Based Dueling Bot! 
+           Please read the rules by calling view_all_rules, then create a character using character_creator!''')
     print(f'{member} has joined the server!!!!!!! WELCOME!!!!')
 
 
 @client.event
 async def on_member_remove(member):
-    # TODO remove user items where server
+    db = sqlite3.connect('main.sqlite')
+    cursor = db.cursor()
+
+    # Delete from characters
+    cursor.execute(f'DELETE FROM characters WHERE guild_id = {member.guild.id} AND user_id = {member.id}')
+    # Delete from player_weapon
+    cursor.execute(f'DELETE FROM player_weapon WHERE guild_id = {member.guild.id} AND user_id = {member.id}')
+    # Delete from player_armor
+    cursor.execute(f'DELETE FROM player_armor WHERE guild_id = {member.guild.id} AND user_id = {member.id}')
+    # Delete from player_potion
+    cursor.execute(f'DELETE FROM player_potion WHERE guild_id = {member.guild.id} AND user_id = {member.id}')
+    # Delete from player_gold
+    cursor.execute(f'DELETE FROM player_gold WHERE guild_id = {member.guild.id} AND user_id = {member.id}')
+    db.commit()
+    cursor.close()
+    db.close()
+
     print(f'{member} left! WE WILL MISS YOU!!!!!')
 
 
@@ -922,7 +949,7 @@ async def setup(ctx):
             test2 = True
 
     if character_at_level:
-        await ctx.send('Since you selected to allow more than one character, select at what level the player\'s most recent character')
+        await ctx.send('Since you selected to allow more than one character, select at what level the player\'s most recent character. This will be implemented in the future.')
         test3 = True
         while(test3):
             charlvl = await client.wait_for("message", check=check)
@@ -962,30 +989,22 @@ async def setup(ctx):
         pass
 
     await ctx.send('''Now lets set up the level list. To set this up, list the experience to level the next level in an additive fashion.
-                    This would mean the string 1,2,3,5,7,9,10,12 would be equal to:
+                    This would mean the string 1,2,3,5,7,9,10,12,15 would be equal to:
                     
                     Level 1 >> Level 2 requires 1 exp point
                     Level 2 >> Level 3 requires 2 exp points
                     Level 3 >> Level 4 requires 3 exp points
-                    Level 5 >> Level 6 requires 5 exp points
-                    Level 6 >> Level 7 requires 7 exp points
-                    Level 7 >> Level 8 requires 9 exp points
-                    Level 8 >> Level 9 requires 10 exp points
-                    Level 9 >> Level 10 requires 12 exp points
+                    Level 4 >> Level 5 requires 5 exp points
+                    Level 5 >> Level 6 requires 7 exp points
+                    Level 6 >> Level 7 requires 9 exp points
+                    Level 7 >> Level 8 requires 10 exp points
+                    Level 8 >> Level 9 requires 12 exp points
+                    Level 9 >> Level 10 requires 15 exp points
                     
                     where exp points are added every win/loss
                     ''')
 
     # lvllist set to lvllist.json
-
-    def can_list_be_int(string_list):
-        correct = True
-        for i in string_list:
-            if can_be_int(i):
-                correct = True
-            else:
-                return False
-        return correct
 
     test4 = True
     while(test4):
@@ -1621,7 +1640,7 @@ async def view_all_rules(ctx):
     db = sqlite3.connect('main.sqlite')
     cursor = db.cursor()
 
-    #                                      0              1            2            3              4           5               6                 7
+    #                             0              1            2            3              4           5               6                 7
     cursor.execute(f'SELECT num_char_allowed, level_char, exp_for_win, exp_for_loss, ac_comp_roll, comp_roll_add, forfeit_loss, stat_for_init_role FROM rules WHERE guild_id = {ctx.guild.id}')
     result = cursor.fetchone()
 
@@ -2739,6 +2758,1862 @@ async def rule_single_error(ctx, error):
     else:
         await ctx.send('An error has occurred!')
 
+
+########################################################################################################################
+#   Creators                                                                                                           #
+########################################################################################################################
+@client.command()
+@commands.has_guild_permissions(administrator=True)
+async def condition_creator(ctx):
+    cond_name = ''
+    cond_type = ''
+    cond_turns = ''
+    cond_damage = ''
+    cond_effect_roll = ''
+    cond_gain_loss = ''
+    cond_effect_stat = ''
+    val_changed = ''
+    cond_lose_turn = ''
+    desc = ''
+
+    def check(amsg):
+        return amsg.author == ctx.author and amsg.channel == ctx.channel
+
+    await ctx.send('''This command will take you through creating a command in a step-by-step manor. Lets start by giving it a name. 
+    At any point, you can type EXIT to close the command. The name cannot be NONE or DONE.''')
+
+    work1 = True
+    while(work1):
+        name = await client.wait_for("message", check=check)
+        name = name.content
+
+        db = sqlite3.connect('main.sqlite')
+        cursor = db.cursor()
+
+        cursor.execute(
+            f'SELECT condition_name FROM effectcond WHERE guild_id = {ctx.guild.id} AND condition_name = {name}')
+        result = cursor.fetchone()
+
+        if result is not None:
+            await ctx.send('The name you picked already exists! Please select another!')
+            work1 = True
+        elif name == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif name == 'NONE':
+            await ctx.send('The name cannot be NONE.')
+        elif name == 'DONE':
+            await ctx.send('The name cannot be DONE.')
+        else:
+            cond_name = name
+            work1 = False
+
+    await ctx.send('''Now, lets assign the value to the condition type. This can either be PHYSICAL or SPECIAL!''')
+
+    work2 = True
+    while(work2):
+        type = await client.wait_for("message", check=check)
+        type = type.content
+
+        if type != 'PHYSICAL' or type != 'SPECIAL' or type != 'EXIT':
+            await ctx.send('The value is not PHYSICAL, SPECIAL, or EXIT! Please try again!')
+        else:
+            if type == 'PHYSICAL' or type == 'SPECIAL':
+                cond_type = type
+                work2 = False
+            elif type == 'EXIT':
+                await ctx.send('Closing...')
+                return
+
+    await ctx.send('''The next step is to set the number of turns this effect last for. This must be in XdY form. This is where X is the number of dice and Y is the max range of dice.''')
+
+    work3 = True
+    while(work3):
+        turns = await client.wait_for("message", check=check)
+        turns = turns.content
+
+        if turns == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif turns.find('d') == -1:
+            await ctx.send('This value is not in XdY form.')
+        else:
+            x = turns.split('d')
+
+            if not can_be_int(x[0]) or not can_be_int(x[1]):
+                await ctx.send('The X or the Y values are not integers.')
+            else:
+                if int(x[0]) < 0 or int(x[1]) < 0:
+                    await ctx.send('The X or Y value is negative.')
+                else:
+                    cond_turns = turns
+                    work3 = False
+
+    await ctx.send('''The next step is to set the damage of this effect. This must be in either NONE or XdY form. This is where X is the number of dice and Y is the max range of dice.''')
+
+    work4 = True
+    while(work4):
+        damage = await client.wait_for("message", check=check)
+        damage = damage.content
+
+        if damage == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif damage.find('d') == -1 or damage != 'NONE':
+            await ctx.send('The value is not in XdY form or NONE! Please try again!')
+        elif damage.find('d') != -1:
+            x = damage.split('d')
+
+            if not can_be_int(x[0]) or not can_be_int(x[1]):
+                await ctx.send('This values for X or Y are not integers! Please try again!')
+            elif int(x[0]) < 0 or int(x[1]) < 0 :
+                await ctx.send('The values for X or Y are negative! Please try again!')
+        else:
+            cond_damage = damage
+            work4 = False
+
+    await ctx.send('''The next thing to look at is the stat used to break from this condition. Please type the stat from the list of stats.''')
+
+    db = sqlite3.connect('main.sqlite')
+    cursor = db.cursor()
+
+
+    cursor.execute(
+        f'SELECT stat1, stat2, stat3, stat4, stat5, stat6 FROM stats WHERE guild_id = {ctx.guild.id}')
+    res1 = cursor.fetchone()
+
+    work5 = True
+    while(work5):
+        effected = await client.wait_for("message", check=check)
+        effected = effected.content
+
+        if effected == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif effected == res1[0]:
+            cond_effect_roll = 'stat1'
+            work5 = False
+        elif effected == res1[1]:
+            cond_effect_roll = 'stat2'
+            work5 = False
+        elif effected == res1[2]:
+            cond_effect_roll = 'stat3'
+            work5 = False
+        elif effected == res1[3]:
+            cond_effect_roll = 'stat4'
+            work5 = False
+        elif effected == res1[4]:
+            cond_effect_roll = 'stat5'
+            work5 = False
+        elif effected == res1[5]:
+            cond_effect_roll = 'stat6'
+            work5 = False
+        else:
+            await ctx.send('The value must be a stat from the stat list!')
+
+    await ctx.send('''This leads into the next step where you need to set if we are going to add or remove from this value on a roll. If you want to add, type GAIN or if you want to remove type LOSS.''')
+
+    work6 = True
+    while(work6):
+        gain_loss = await client.wait_for("message", check=check)
+        gain_loss = gain_loss.content
+
+        if gain_loss == 'GAIN' or gain_loss == 'LOSS':
+            cond_gain_loss = gain_loss
+            work6 = False
+        elif gain_loss == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        else:
+            await ctx.send('The value was not either GAIN or LOSS! Please try again!')
+
+    await ctx.send('''Now lets determine the stat that will be effected. This would either be HP, MP, or EP if it effects those stats or a stat from the stat list.''')
+
+    work7 = True
+    while(work7):
+        stat_effected = await client.wait_for("message", check=check)
+        stat_effected = stat_effected.content
+
+        if stat_effected == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif stat_effected == 'HP' or stat_effected == 'MP' or stat_effected == 'EP':
+            cond_effect_stat = stat_effected
+            work7 = False
+        elif stat_effected == res1[0]:
+            cond_effect_stat = 'stat1'
+            work7 = False
+        elif stat_effected == res1[1]:
+            cond_effect_stat = 'stat2'
+            work7 = False
+        elif stat_effected == res1[2]:
+            cond_effect_stat = 'stat3'
+            work7 = False
+        elif stat_effected == res1[3]:
+            cond_effect_stat = 'stat4'
+            work7 = False
+        elif stat_effected == res1[4]:
+            cond_effect_stat = 'stat5'
+            work7 = False
+        elif stat_effected == res1[5]:
+            cond_effect_stat = 'stat6'
+            work7 = False
+        else:
+            await ctx.send('The value must be a stat from the stat list or HP, MP, or EP!')
+
+    await ctx.send('Now how much will this value change by? Please type it in here and make sure it is an integer!')
+
+    work8 = True
+    while(work8):
+        val_diff = await client.wait_for("message", check=check)
+        val_diff = val_diff.content
+
+        if can_be_int(val_diff):
+            val_changed = val_diff
+            work8 = False
+        elif val_diff == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        else:
+            await ctx.send('This value must be an integer! Please try again!')
+
+    await ctx.send('Now lets gets a description written for the condition.')
+
+    cond_lose_turn = 'NO'
+
+    work9 = True
+    while(work9):
+        desc_written = await client.wait_for("message", check=check)
+        desc_written = desc_written.content
+
+        if desc_written == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        else:
+            desc = desc_written
+            work9 = False
+
+    db = sqlite3.connect('main.sqlite')
+    cursor = db.cursor()
+
+    sql = (
+        'INSERT INTO effectcond(guild_id, condition_name, condition_type, condition_turns, condition_damage, condition_effect_roll, condition_gain_loss, condition_effect_stat, val_removed, cause_lose_turn, condition_desc) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    val = (ctx.guild.id, cond_name, cond_type, cond_turns, cond_damage, cond_effect_roll, cond_gain_loss, cond_effect_stat, val_changed, cond_lose_turn, desc)
+    cursor.execute(sql, val)
+    db.commit()
+    cursor.close()
+    db.close()
+
+
+
+@client.command()
+@commands.has_guild_permissions(administrator=True)
+async def ability_creator(ctx):
+    abil_name = ''
+    abil_type = ''
+    buff_range = ''
+    buff_cond = ''
+    abil_desc = ''
+
+    def check(amsg):
+        return amsg.author == ctx.author and amsg.channel == ctx.channel
+
+
+    await ctx.send('''Let's create an ability. To start, let's get the name. Make sure the name is not the same as an already existing name. If you want to quit at any point, type EXIT''')
+
+    pass1 = True
+    while(pass1):
+        name = await client.wait_for("message", check=check)
+        name = name.content
+
+        if name == 'EXIT':
+            await ctx.send('Closing...')
+            return
+
+        db = sqlite3.connect('main.sqlite')
+        cursor = db.cursor()
+
+        cursor.execute(
+            f'SELECT ability_name FROM abilities WHERE guild_id = {ctx.guild.id} AND ability_name = {name}')
+        result = cursor.fetchone()
+
+        if result is not None:
+            await ctx.send('This is an already existing ability! Please pick a new name!')
+        elif name == 'NONE':
+            await ctx.send('The name cannot be NONE.')
+        elif name == 'DONE':
+            await ctx.send('The name cannot be DONE.')
+        else:
+            abil_name = name
+            pass1 = False
+
+    await ctx.send('''Now let's set the type of the ability! The acceptable values are PHYSICAL or SPECIAL.''')
+
+    pass2 = True
+    while(pass2):
+        type = await client.wait_for("message", check=check)
+        type = type.content
+
+        if type == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif type == 'PHYSICAL' or type == 'SPECIAL':
+            abil_type = type
+            pass2 = False
+        else:
+            await ctx.send('The value is not accepted. Please use either PHYSICAL or SPECIAL!')
+
+    await ctx.send('''Next, let's determine the range of the ability. Type SELF if it effects the person or type ENEMY if it effects the enemy.''')
+
+    pass3 = True
+    while(pass3):
+        range = await client.wait_for("message", check=check)
+        range = range.content
+
+        if range == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif range == 'SELF' or range == 'ENEMY':
+            buff_range = range
+            pass3 = False
+        else:
+            await ctx.send('The value does not match either SELF or ENEMY! Please try again!')
+
+    await ctx.send(''''Now let's set the condition associated with the ability. The condition you type in must match a condition in your conditions list.''')
+
+    pass4 = True
+    while(pass4):
+        cond = await client.wait_for("message", check=check)
+        cond = cond.content
+
+        if cond == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        else:
+            db = sqlite3.connect('main.sqlite')
+            cursor = db.cursor()
+
+            cursor.execute(
+                f'SELECT condition_name FROM effectcond WHERE guild_id = {ctx.guild.id} AND condition_name = {cond}')
+            res = cursor.fetchone()
+
+            if res is not None:
+                buff_cond = cond
+                pass4 = False
+            else:
+                await ctx.send('This condition does not exist! Please type one that does.')
+
+    await ctx.send('''Finally, let's add a description.''')
+
+    pass5 = True
+    while(pass5):
+        desc = await client.wait_for("message", check=check)
+        desc = desc.content
+
+        if desc == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        else:
+            abil_desc = desc
+            pass5 = False
+
+    db = sqlite3.connect('main.sqlite')
+    cursor = db.cursor()
+
+    sql = (
+        'INSERT INTO abilities(guild_id, ability_name, ability_type, buff_range, buff_condition, ability_desc) VALUES(?,?,?,?,?,?)')
+    val = (ctx.guild.id, abil_name, abil_type, buff_range, buff_cond, abil_desc)
+    cursor.execute(sql, val)
+    db.commit()
+    cursor.close()
+    db.close()
+
+
+@client.command()
+@commands.has_guild_permissions(administrator=True)
+async def spell_creator(ctx):
+    def check(amsg):
+        return amsg.author == ctx.author and amsg.channel == ctx.channel
+
+    spell_name = ''
+    spell_buff_attack = ''
+    spell_used_stat = ''
+    spell_type = ''
+    spell_range = ''
+    spell_damage = ''
+    spell_save = ''
+    buff_deb_cond = ''
+    spell_desc = ''
+
+    attack_buff = True
+
+    await ctx.send('''This is the spell creator. Lets start with the name of the spell. This name must not match any previously created spells. Spell names cannot be NONE or DONE. At any point, type EXIT to quit.''')
+
+    work1 = True
+    while(work1):
+        name = await client.wait_for("message", check=check)
+        name = name.content
+
+        if name == 'EXIT':
+            await ctx.send('Closing...')
+            return
+
+        db = sqlite3.connect('main.sqlite')
+        cursor = db.cursor()
+
+        cursor.execute(
+            f'SELECT spell_name FROM spells WHERE guild_id = {ctx.guild.id} AND spell_name = {name}')
+        res = cursor.fetchone()
+
+        if res is not None:
+            await ctx.send('This spell already exists. Please try a different name.')
+        elif name == 'NONE':
+            await ctx.send('The name cannot be NONE.')
+        elif name == 'DONE':
+            await ctx.send('The name cannot be DONE.')
+        else:
+            spell_name = name
+            work1 = False
+
+    await ctx.send('''Now let's set if this is an attack or buff. The values to use are ATTACK or BUFF.''')
+
+    work2 = True
+    while(work2):
+        att_buff = await client.wait_for("message", check=check)
+        att_buff = att_buff.content
+
+        if att_buff == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif att_buff == 'ATTACK':
+            spell_buff_attack = att_buff
+            attack_buff = True
+            work2 = False
+        elif att_buff == 'BUFF':
+            spell_buff_attack = att_buff
+            attack_buff = False
+            work2 = False
+        else:
+            await ctx.send('This is not a valid string. Please type ATTACK or BUFF!')
+
+
+    await ctx.send('''From here, let's work on setting what stat the spell adds to better the cast. This value must be one from your stat list.''')
+
+    work4 = True
+    while(work4):
+        stat = await client.wait_for("message", check=check)
+        stat = stat.content
+
+        if stat == 'EXIT':
+            await ctx.send('Closing...')
+            return
+
+        cursor.execute(
+            f'SELECT stat1, stat2, stat3, stat4, stat5, stat6 FROM stats WHERE guild_id = {ctx.guild.id}')
+        stats = cursor.fetchone()
+
+        if stat == stats[0]:
+            spell_used_stat = 'stat1'
+            work4 = False
+        elif stat == stats[1]:
+            spell_used_stat = 'stat2'
+            work4 = False
+        elif stat == stats[2]:
+            spell_used_stat = 'stat3'
+            work4 = False
+        elif stat == stats[3]:
+            spell_used_stat = 'stat4'
+            work4 = False
+        elif stat == stats[4]:
+            spell_used_stat = 'stat5'
+            work4 = False
+        elif stat == stats[5]:
+            spell_used_stat = 'stat6'
+            work4 = False
+        else:
+            await ctx.send('The value is not a stat. Please try again!')
+
+    await ctx.send('''Next, let's set the type of spell. The value must be PHYSICAL or SPECIAL.''')
+
+    work3 = True
+    while(work3):
+        type = await client.wait_for("message", check=check)
+        type = type.content
+
+        if type == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif type == 'PHYSICAL' or type == 'SPECIAL':
+            spell_type = type
+            work3 = False
+
+    await ctx.send('''Now, let's work on the spell range. The range can either be SELF to foucs the ability on the caster or ENEMY to focus the other player.''')
+
+    work5 = True
+    while(work5):
+        range = await client.wait_for("message", check=check)
+        range = range.content
+
+        if range == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif range == 'SELF' or range == 'ENEMY':
+            spell_range = range
+            work5 = False
+
+    await ctx.send('''Next, to set the spell you use to save. This value must be one from your stat list.''')
+
+    work6 = True
+    while(work6):
+        stat = await client.wait_for("message", check=check)
+        stat = stat.content
+
+        if stat == 'EXIT':
+            await ctx.send('Closing...')
+            return
+
+        cursor.execute(
+            f'SELECT stat1, stat2, stat3, stat4, stat5, stat6 FROM stats WHERE guild_id = {ctx.guild.id}')
+        stats = cursor.fetchone()
+
+        if stat == stats[0]:
+            spell_save = 'stat1'
+            work6 = False
+        elif stat == stats[1]:
+            spell_save = 'stat2'
+            work6 = False
+        elif stat == stats[2]:
+            spell_save = 'stat3'
+            work6 = False
+        elif stat == stats[3]:
+            spell_save = 'stat4'
+            work6 = False
+        elif stat == stats[4]:
+            spell_save = 'stat5'
+            work6 = False
+        elif stat == stats[5]:
+            spell_save = 'stat6'
+            work6 = False
+        else:
+            await ctx.send('The value is not a stat. Please try again!')
+
+    if (attack_buff):
+        await ctx.send('''Now, since the spell is an attack, let's set the damage. This must be in a dice form of XdY where X is the count of dice and Y is the max value of the dice.''')
+        buff_deb_cond = 'NONE'
+
+        work7 = True
+        while(work7):
+            damage = await client.wait_for("message", check=check)
+            damage = damage.content
+
+            if damage == 'EXIT':
+                await ctx.send('Closing...')
+                return
+            elif damage.find('d') == -1:
+                await ctx.send('The value must be in XdY form! Please change the value.')
+            elif damage.find('d') != -1:
+                x = damage.split('d')
+
+                if can_be_int(x[0]) and can_be_int(x[1]):
+                    if int(x[0]) > 0 or int(x[1]) > 0:
+                        spell_damage = damage
+                        work7 = False
+                    else:
+                        await ctx.send('This value for X or Y are not positive! Please change the value.')
+                else:
+                    await ctx.send('This value for X or Y are not integers! Please change the value.')
+            else:
+                await ctx.send('The value must be in XdY form! Please change the value.')
+
+    else:
+        await ctx.send('''Now, since the spell is a buff or debuff, let's set the condition that effects the spell would have. This effect much match a name from the conditions database.''')
+        spell_damage = 'NONE'
+
+        work7 = True
+        while(work7):
+            cond = await client.wait_for("message", check=check)
+            cond = cond.content
+
+            if cond == 'EXIT':
+                await ctx.send('Closing...')
+                return
+
+            cursor.execute(
+                f'SELECT condition_name FROM effectcond WHERE guild_id = {ctx.guild.id} AND condition_name = {cond}')
+            val_cond = cursor.fetchone()
+
+            if val_cond is not None:
+                buff_deb_cond = cond
+                work7 = False
+            else:
+                await ctx.send('''This value is not in the conditions database.''')
+
+    work8 = True
+    while(work8):
+        desc = await client.wait_for("message", check=check)
+        desc = desc.content
+
+        if desc == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        else:
+            spell_desc = desc
+            work8 = False
+
+    db = sqlite3.connect('main.sqlite')
+    cursor = db.cursor()
+
+    sql = (
+        'INSERT INTO spells(guild_id, spell_name, attack_buff, spell_uses, spell_type, spell_range, spell_damage, spell_save, buff_debuff_condition, spell_desc) VALUES(?,?,?,?,?,?,?,?,?,?)')
+    val = (ctx.guild.id, spell_name, spell_buff_attack, spell_used_stat, spell_type, spell_range, spell_damage, spell_save, buff_deb_cond, spell_desc)
+
+    cursor.execute(sql, val)
+    db.commit()
+    cursor.close()
+    db.close()
+
+
+@client.command()
+@commands.has_guild_permissions(administrator=True)
+async def race_creator(ctx):
+    race_name = ''
+    race_hp = ''
+    race_mp = ''
+    race_ep = ''
+    race_stat_plus_min = ''
+    race_cond_immune_list = ''
+    race_cond_resist_list = ''
+    race_cond_vuln_list = ''
+    race_abil_list = ''
+    race_desc = ''
+
+    def check(amsg):
+        return amsg.author == ctx.author and amsg.channel == ctx.channel
+
+    await ctx.send('''This creates a race for characters to be. Let's start with the race name. Please make sure that the race is not the same name as other races. The value cannot be NONE or DONE. At any point, you can type EXIT to stop working.''')
+
+    work1 = True
+    while(work1):
+        name = await client.wait_for("message", check=check)
+        name = name.content
+
+        if name == 'EXIT':
+            await ctx.send('Closing...')
+            return
+
+        db = sqlite3.connect('main.sqlite')
+        cursor = db.cursor()
+
+        cursor.execute(
+            f'SELECT race_name FROM races WHERE guild_id = {ctx.guild.id} AND race_name = {name}')
+        res1 = cursor.fetchone()
+
+        if res1 is not None:
+            await ctx.send('This name already exists. Please choose a different name!')
+        elif name == 'NONE':
+            await ctx.send('The name cannot be NONE.')
+        elif name == 'DONE':
+            await ctx.send('The name cannot be DONE.')
+        else:
+            race_name = name
+            work1 = False
+
+    await ctx.send('''Now let's get the race health stat. This stat must be a positive integer number.''')
+
+    work2 = True
+    while(work2):
+        hp = await client.wait_for("message", check=check)
+        hp = hp.content
+
+        if hp == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif can_be_int(hp):
+            if int(hp) > 0:
+                race_hp = hp
+                work2 = False
+            else:
+                await ctx.send('The value is not positive.')
+        else:
+            await ctx.send('The value is not an integer.')
+
+    await ctx.send('''Next, let's set the mana stat. This stat must be a positive integer number.''')
+
+    work3 = True
+    while(work3):
+        mp = await client.wait_for("message", check=check)
+        mp = mp.content
+
+        if mp == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif can_be_int(mp):
+            if int(mp) > 0:
+                race_mp = mp
+                work3 = False
+            else:
+                await ctx.send('The value is not positive.')
+        else:
+            await ctx.send('The value is not an integer.')
+
+    await ctx.send('''Now, let's set the energy stat. This stat must be a positive integer number.''')
+
+    work4 = True
+    while(work4):
+        ep = await client.wait_for("message", check=check)
+        ep = ep.content
+
+        if ep == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif can_be_int(ep):
+            if int(ep) > 0:
+                race_ep = ep
+                work3 = False
+            else:
+                await ctx.send('The value is not positive.')
+        else:
+            await ctx.send('The value is not an integer.')
+
+    db = sqlite3.connect('main.sqlite')
+    cursor = db.cursor()
+    cursor.execute(
+        f'SELECT stat1, stat2, stat3, stat4, stat5, stat6 FROM stats WHERE guild_id = {ctx.guild.id}')
+    stats = cursor.fetchone()
+
+    await ctx.send(f'''Now let's work on creating the stat array. This array will contain a list of the six stats with what will be added and subtracted. 
+    These values must be integers. Let's start with the value of {stats[0]}. If you are adding to the value, make the integer positive, zero if it is not changing, or negative if you are removing from it.''')
+
+    work5 = True
+    while(work5):
+        stat1 = await client.wait_for("message", check=check)
+        stat1 = stat1.content
+
+        if stat1 == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif can_be_int(stat1):
+            race_stat_plus_min += f'{stat1},'
+            work5 = False
+        else:
+            await ctx.send('The value is incorrect. Please try again!')
+
+    await ctx.send(f'''Now, let's set {stats[1]}.''')
+
+    work6 = True
+    while (work6):
+        stat2 = await client.wait_for("message", check=check)
+        stat2 = stat2.content
+
+        if stat2 == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif can_be_int(stat2):
+            race_stat_plus_min += f'{stat2},'
+            work6 = False
+        else:
+            await ctx.send('The value is incorrect. Please try again!')
+
+    await ctx.send(f'''Now, let's set {stats[2]}.''')
+
+    work7 = True
+    while (work7):
+        stat3 = await client.wait_for("message", check=check)
+        stat3 = stat3.content
+
+        if stat3 == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif can_be_int(stat3):
+            race_stat_plus_min += f'{stat3},'
+            work7 = False
+        else:
+            await ctx.send('The value is incorrect. Please try again!')
+
+    await ctx.send(f'''Now, let's set {stats[3]}.''')
+
+    work8 = True
+    while (work8):
+        stat4 = await client.wait_for("message", check=check)
+        stat4 = stat4.content
+
+        if stat4 == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif can_be_int(stat4):
+            race_stat_plus_min += f'{stat4},'
+            work8 = False
+        else:
+            await ctx.send('The value is incorrect. Please try again!')
+
+    await ctx.send(f'''Now, let's set {stats[4]}.''')
+
+    work9 = True
+    while (work9):
+        stat5 = await client.wait_for("message", check=check)
+        stat5 = stat5.content
+
+        if stat5 == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif can_be_int(stat5):
+            race_stat_plus_min += f'{stat5},'
+            work9 = False
+        else:
+            await ctx.send('The value is incorrect. Please try again!')
+
+    await ctx.send(f'''Now, let's set {stats[5]}.''')
+
+    work10 = True
+    while (work10):
+        stat6 = await client.wait_for("message", check=check)
+        stat6 = stat6.content
+
+        if stat6 == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif can_be_int(stat6):
+            race_stat_plus_min += f'{stat6},'
+            work10 = False
+        else:
+            await ctx.send('The value is incorrect. Please try again!')
+
+    race_stat_plus_min.rstrip(',')
+
+    await ctx.send('''Now let's set the list of conditions the race is immune to. Please type in names of the condition or NONE if there is none. If there are multiple conditions, DONE when you are done.''')
+
+    work11 = True
+    while(work11):
+        condition = await client.wait_for("message", check=check)
+        condition = condition.content
+
+        if condition == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif condition == 'NONE':
+            if race_cond_immune_list == '':
+                race_cond_immune_list = condition
+                work11 = False
+            else:
+                await ctx.send('There are other values. Please type DONE instead.')
+        elif condition == 'DONE':
+            if not race_cond_immune_list == '':
+                race_cond_immune_list.rstrip(',')
+                work11 = False
+            else:
+                await ctx.send('There are no values. Please type NONE instead.')
+        else:
+            db = sqlite3.connect('main.sqlite')
+            cursor = db.cursor()
+
+            cursor.execute(
+                f'SELECT condition_name FROM effectcond WHERE guild_id = {ctx.guild.id} AND condition_name = {condition}')
+            res = cursor.fetchone()
+
+            if res is not None:
+                race_cond_immune_list += f'{condition},'
+
+
+    await ctx.send('''Now let's set the list of conditions the race is resistant to. Please type in names of the condition or NONE if there is none. If there are multiple conditions, DONE when you are done.''')
+
+    work11 = True
+    while(work11):
+        condition = await client.wait_for("message", check=check)
+        condition = condition.content
+
+        if condition == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif condition == 'NONE':
+            if race_cond_resist_list == '':
+                race_cond_resist_list = condition
+                work11 = False
+            else:
+                await ctx.send('There are other values. Please type DONE instead.')
+        elif condition == 'DONE':
+            if not race_cond_resist_list == '':
+                race_cond_resist_list.rstrip(',')
+                work11 = False
+            else:
+                await ctx.send('There are no values. Please type NONE instead.')
+        else:
+            db = sqlite3.connect('main.sqlite')
+            cursor = db.cursor()
+
+            cursor.execute(
+                f'SELECT condition_name FROM effectcond WHERE guild_id = {ctx.guild.id} AND condition_name = {condition}')
+            res = cursor.fetchone()
+
+            if res is not None:
+                race_cond_resist_list += f'{condition},'
+
+    await ctx.send('''Now let's set the list of conditions the race is vulnerable to. Vulnerable to a condition causes two times the turns effected. Please type in names of the condition or NONE if there is none. If there are multiple conditions, DONE when you are done.''')
+
+    work11 = True
+    while(work11):
+        condition = await client.wait_for("message", check=check)
+        condition = condition.content
+
+        if condition == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif condition == 'NONE':
+            if race_cond_vuln_list == '':
+                race_cond_vuln_list = condition
+                work11 = False
+            else:
+                await ctx.send('There are other values. Please type DONE instead.')
+        elif condition == 'DONE':
+            if not race_cond_vuln_list == '':
+                race_cond_vuln_list.rstrip(',')
+                work11 = False
+            else:
+                await ctx.send('There are no values. Please type NONE instead.')
+        else:
+            db = sqlite3.connect('main.sqlite')
+            cursor = db.cursor()
+
+            cursor.execute(
+                f'SELECT condition_name FROM effectcond WHERE guild_id = {ctx.guild.id} AND condition_name = {condition}')
+            res = cursor.fetchone()
+
+            if res is not None:
+                race_cond_vuln_list += f'{condition},'
+
+    await ctx.send('''Now let's set the list of abilities the race has. Please type in names of the abilites or NONE if there is none. If there are multiple abilities, DONE when you are done.''')
+
+    work11 = True
+    while(work11):
+        ability = await client.wait_for("message", check=check)
+        ability = ability.content
+
+        if ability == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif ability == 'NONE':
+            if race_abil_list == '':
+                race_abil_list = condition
+                work11 = False
+            else:
+                await ctx.send('There are other values. Please type DONE instead.')
+        elif ability == 'DONE':
+            if not race_abil_list == '':
+                race_abil_list.rstrip(',')
+                work11 = False
+            else:
+                await ctx.send('There are no values. Please type NONE instead.')
+        else:
+            db = sqlite3.connect('main.sqlite')
+            cursor = db.cursor()
+
+            cursor.execute(
+                f'SELECT ability_name, ability_type, buff_range, buff_condition, ability_desc FROM abilities WHERE guild_id = {ctx.guild.id} AND ability_name = {ability}')
+            res = cursor.fetchone()
+
+            if res is not None:
+                race_abil_list += f'{condition},'
+
+    await ctx.send('''Finally, let's set a description for the race. This will describe how the race looks, area, etc. This is just for role-playing aspects.''')
+
+    work12 = True
+    while(work12):
+        desc = await client.wait_for("message", check=check)
+        desc = desc.content
+
+        if desc == 'EXIT':
+            await ctx.send('Closing...')
+            return
+
+        race_desc = desc
+        work12 = False
+
+    db = sqlite3.connect('main.sqlite')
+    cursor = db.cursor()
+
+    sql = (
+        'INSERT INTO spells(guild_id, race_name, val_hp, val_mp, val_ep, stats_plus_min, condtion_immune, condtition_strength, condition_vulnerable, ability_list, race_description) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    val = (ctx.guild.id, race_name, race_hp, race_mp, race_ep, race_stat_plus_min, race_cond_immune_list, race_cond_resist_list, race_cond_vuln_list, race_abil_list, race_desc)
+
+    cursor.execute(sql, val)
+    db.commit()
+    cursor.close()
+    db.close()
+
+@client.command()
+@commands.has_guild_permissions(administrator=True)
+async def class_creator(ctx):
+    class_name = ''
+    class_add_sub_hp = ''
+    class_add_sub_mp = ''
+    class_add_sub_ep = ''
+    class_add_sub_stat_list = ''
+    class_spell_save = ''
+    class_unarmed_attack = ''
+    class_spell_list = ''
+    class_start_weapon = ''
+    class_start_armor = ''
+    class_start_potion = ''
+    class_desc = ''
+
+    def check(amsg):
+        return amsg.author == ctx.author and amsg.channel == ctx.channel
+
+    await ctx.send('''Thank you for starting to use the class creator. At any point, you can enter EXIT to close the command. Let's start by entering a name. This name must not be DONE, NONE, or match other class names.''')
+
+    work1 = True
+    while(work1):
+        name = await client.wait_for("message", check=check)
+        name = name.content
+
+        if name == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif name == 'DONE':
+            await ctx.send('The name cannot be DONE.')
+        elif name == 'NONE':
+            await ctx.send('The name cannot be NONE.')
+        else:
+            db = sqlite3.connect('main.sqlite')
+            cursor = db.cursor()
+
+            cursor.execute(
+                f'SELECT class_name, add_sub_hp, add_sub_mp, add_sub_ep, stats_plus_min, stat_spell_save, unarmed_attack_damage, spell_array, class_ac_roll_stat, start_weapon, start_armor, start_items, class_desc FROM classes WHERE guild_id = {ctx.guild.id} AND class_name = {name}')
+            res = cursor.fetchone()
+
+            if res is not None:
+                await ctx.send('This name already exits.')
+            else:
+                class_name = name
+                work1 = False
+
+    await ctx.send('''Now let's set the value to be added or removed from the health value. This value must be an integer.''')
+
+    work2 = True
+    while(work2):
+        add_sub_hp = await client.wait_for("message", check=check)
+        add_sub_hp = add_sub_hp.content
+
+        if can_be_int(add_sub_hp):
+            class_add_sub_hp = add_sub_hp
+            work2 = False
+
+    await ctx.send('''Now let's do the same for the mana value. This value must be an integer.''')
+
+    work3 = True
+    while (work3):
+        add_sub_mp = await client.wait_for("message", check=check)
+        add_sub_mp = add_sub_mp.content
+
+        if can_be_int(add_sub_mp):
+            class_add_sub_mp = add_sub_mp
+            work3 = False
+
+    await ctx.send('''Now let's do the same for the energy value. This value must be an integer.''')
+
+    work3 = True
+    while (work3):
+        add_sub_ep = await client.wait_for("message", check=check)
+        add_sub_ep = add_sub_ep.content
+
+        if can_be_int(add_sub_ep):
+            class_add_sub_ep = add_sub_ep
+            work3 = False
+
+    db = sqlite3.connect('main.sqlite')
+    cursor = db.cursor()
+    cursor.execute(
+        f'SELECT stat1, stat2, stat3, stat4, stat5, stat6 FROM stats WHERE guild_id = {ctx.guild.id}')
+    stats = cursor.fetchone()
+
+    await ctx.send(
+        f'''Now let's work on creating the stat array. This array will contain a list of the six stats with what will be added and subtracted. 
+        These values must be integers. Let's start with the value of {stats[0]}. If you are adding to the value, make the integer positive, zero if it is not changing, or negative if you are removing from it.''')
+
+    work5 = True
+    while (work5):
+        stat1 = await client.wait_for("message", check=check)
+        stat1 = stat1.content
+
+        if stat1 == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif can_be_int(stat1):
+            class_add_sub_stat_list += f'{stat1},'
+            work5 = False
+        else:
+            await ctx.send('The value is incorrect. Please try again!')
+
+    await ctx.send(f'''Now, let's set {stats[1]}.''')
+
+    work6 = True
+    while (work6):
+        stat2 = await client.wait_for("message", check=check)
+        stat2 = stat2.content
+
+        if stat2 == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif can_be_int(stat2):
+            class_add_sub_stat_list += f'{stat2},'
+            work6 = False
+        else:
+            await ctx.send('The value is incorrect. Please try again!')
+
+    await ctx.send(f'''Now, let's set {stats[2]}.''')
+
+    work7 = True
+    while (work7):
+        stat3 = await client.wait_for("message", check=check)
+        stat3 = stat3.content
+
+        if stat3 == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif can_be_int(stat3):
+            class_add_sub_stat_list += f'{stat3},'
+            work7 = False
+        else:
+            await ctx.send('The value is incorrect. Please try again!')
+
+    await ctx.send(f'''Now, let's set {stats[3]}.''')
+
+    work8 = True
+    while (work8):
+        stat4 = await client.wait_for("message", check=check)
+        stat4 = stat4.content
+
+        if stat4 == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif can_be_int(stat4):
+            class_add_sub_stat_list += f'{stat4},'
+            work8 = False
+        else:
+            await ctx.send('The value is incorrect. Please try again!')
+
+    await ctx.send(f'''Now, let's set {stats[4]}.''')
+
+    work9 = True
+    while (work9):
+        stat5 = await client.wait_for("message", check=check)
+        stat5 = stat5.content
+
+        if stat5 == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif can_be_int(stat5):
+            class_add_sub_stat_list += f'{stat5},'
+            work9 = False
+        else:
+            await ctx.send('The value is incorrect. Please try again!')
+
+    await ctx.send(f'''Now, let's set {stats[5]}.''')
+
+    work10 = True
+    while (work10):
+        stat6 = await client.wait_for("message", check=check)
+        stat6 = stat6.content
+
+        if stat6 == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif can_be_int(stat6):
+            class_add_sub_stat_list += f'{stat6},'
+            work10 = False
+        else:
+            await ctx.send('The value is incorrect. Please try again!')
+
+    class_add_sub_stat_list.rstrip(',')
+
+    await ctx.send('''Let's focus on the spell save. This value is what the enemy player needs to roll against when a spell is cast. This value must be a positive integer.''')
+
+    work11 = True
+    while(work11):
+        save =  await client.wait_for("message", check=check)
+        save = save.content
+
+        if save == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif can_be_int(save):
+            if int(save) > 0:
+                class_spell_save = save
+                work11 = False
+            else:
+                await ctx.send('The value must be positive! Please try again!')
+        else:
+            await ctx.send('The value must be an integer! Please try again!')
+
+    await ctx.send('''Now, let's set the classes unarmed attack dice. This value must written as XdY where X is the number of dice and Y is the max value of the dice.''')
+
+    work12 = True
+    while(work12):
+        unarmed = await client.wait_for("message", check=check)
+        unarmed = unarmed.context
+
+        if unarmed == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif unarmed.find('d') != -1:
+            x = unarmed.split('d')
+
+            if can_be_int(x[0]) or can_be_int(x[1]):
+                if int(x[0]) > 0and int(x[1]) > 0:
+                    class_unarmed_attack = unarmed
+                    work12 = False
+                else:
+                    await ctx.send('The X or Y values are not positive! Please try again!')
+            else:
+                await ctx.send('The X or Y values are not integers! Please try again!')
+        else:
+            await ctx.send('The value is not in XdY form. Please try again!')
+
+    await ctx.send('''Now let's set what spells are associated with the class.''')
+
+    work13 = True
+    while (work13):
+        spell = await client.wait_for("message", check=check)
+        spell = spell.content
+
+        if spell == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        elif spell == 'NONE':
+            if class_spell_list == '':
+                class_spell_list = spell
+                work13 = False
+            else:
+                await ctx.send('There are other values. Please type DONE instead.')
+        elif spell == 'DONE':
+            if class_spell_list != '':
+                class_spell_list.rstrip(',')
+                work13 = False
+            else:
+                await ctx.send('There are no values. Please type NONE instead.')
+        else:
+            db = sqlite3.connect('main.sqlite')
+            cursor = db.cursor()
+
+            cursor.execute(
+                f'SELECT spell_name FROM spells WHERE guild_id = {ctx.guild.id} AND spell_name = {spell}')
+            res = cursor.fetchone()
+
+            if res is not None:
+                class_spell_list += f'{spell},'
+
+    await ctx.send('''Now let's set the weapon you start with. Make sure this name matches a name from the weapons list.''')
+
+    work14 = True
+    while(work14):
+        weap_name = await client.wait_for("message", check=check)
+        weap_name = weap_name.content
+
+        if weap_name == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        else:
+            db = sqlite3.connect('main.sqlite')
+            cursor = db.cursor()
+
+            cursor.execute(
+                f'SELECT weapon_name FROM weapons WHERE guild_id = {ctx.guild.id} AND weapon_name = {weap_name}')
+            sweap = cursor.fetchone()
+
+            if sweap is not None:
+                class_start_weapon = weap_name
+                work14 = False
+            else:
+                await ctx.send('This name is not a weapon.')
+
+    await ctx.send('''Now let's set the armor you start with. Make sure this name matches a name from the armor list.''')
+
+    work15 = True
+    while(work15):
+        armor_name = await client.wait_for("message", check=check)
+        armor_name = armor_name.content
+
+        if armor_name == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        else:
+            db = sqlite3.connect('main.sqlite')
+            cursor = db.cursor()
+
+            cursor.execute(
+                f'SELECT armor_name FROM armors WHERE guild_id = {ctx.guild.id} AND armor_name = {armor_name}')
+            start_arm = cursor.fetchone()
+
+            if start_arm is not None:
+                class_start_armor = armor_name
+                work15 = False
+            else:
+                await ctx.send('This name is not an armor.')
+
+    await ctx.send('''Now let's set the potion you start with. Make sure this name matches a name from the potion list.''')
+
+    work16 = True
+    while(work16):
+        potion_name = await client.wait_for("message", check=check)
+        potion_name = potion_name.content
+
+        if potion_name == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        else:
+            db = sqlite3.connect('main.sqlite')
+            cursor = db.cursor()
+
+            cursor.execute(
+                f'SELECT potion_name FROM potions WHERE guild_id = {ctx.guild.id} AND potion_name = {potion_name}')
+            start_pot = cursor.fetchone()
+
+            if start_pot is not None:
+                class_start_potion = potion_name
+                work16 = False
+            else:
+                await ctx.send('This is not a potion name. Please try again!')
+
+    work17 = True
+    while(work17):
+        desc = await client.wait_for("message", check=check)
+        desc = desc.content
+
+        if desc == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        else:
+            class_desc = desc
+            work17 = False
+
+    sql = (
+        'INSERT INTO spells(guild_id, class_name, add_sub_hp, add_sub_mp, add_sub_ep, stats_plus_min, stat_spell_save, unarmed_attack_damage, spell_array, class_ac_roll_stat, start_weapon, start_armor, start_items, class_desc) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+    val = (ctx.guild.id, class_name, class_add_sub_hp, class_add_sub_mp, class_add_sub_ep, class_add_sub_stat_list, class_spell_save, class_unarmed_attack, class_spell_list, class_start_weapon, class_start_armor, class_start_potion, class_desc)
+
+    cursor.execute(sql, val)
+    db.commit()
+    cursor.close()
+    db.close()
+
+@commands.command()
+async def create_character(ctx):
+    userid = ctx.message.author.id
+    char_name = ''
+    char_class = ''
+    char_race = ''
+    char_stat_list = ''
+    char_desc = ''
+
+    def check(amsg):
+        return amsg.author == ctx.author and amsg.channel == ctx.channel
+
+    db = sqlite3.connect('main.sqlite')
+    cursor = db.cursor()
+
+    cursor.execute(f'SELECT COUNT(character_name) FROM characters WHERE guild_id = {ctx.guild.id} AND user_id = {userid}')
+    res1 = cursor.fetchone()
+
+    cursor.execute(f'SELECT num_char_allowed FROM rules WHERE guild_id = {ctx.guild.id}')
+    res2 = cursor.fetchone()
+
+    if res1[0] >= res2[0]:
+        await ctx.send('You already have hit the max number of characters! Closing...')
+        return
+
+    await ctx.send('''This command is a custom build character generator. This will act as a step-by-step guide to building a character. At any point, you can type EXIT to quit the command. Additionally, there is a two minute timeout for each prompt.
+    Let's start with a name for the character. The name cannot be EXIT, DONE, or NONE.''')
+
+    work1 = True
+    while(work1):
+        try:
+            name = await client.wait_for("message", timeout=120, check=check)
+        except asyncio.TimeoutError:
+            await ctx.send('You took too long to type a name! Closing...')
+            return
+        name = name.content
+
+        if name == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        else:
+            cursor.execute(
+                f'SELECT character_name FROM characters WHERE guild_id = {ctx.guild.id} AND user_id = {userid} AND character_name = {name}')
+            res = cursor.fetchone()
+
+            if res is not None:
+                await ctx.send('This name is the same as another of your characters. Please try again!')
+            else:
+                char_name = name
+                work1 = False
+
+    await ctx.send('''Now that a name is selected, let's pick a race. Make sure the race exists in the game.''')
+
+    work2 = True
+    while(work2):
+        try:
+            race = await client.wait_for("message", timeout=120, check=check)
+        except asyncio.TimeoutError:
+            await ctx.send('You took too long to type a race! Closing...')
+            return
+        race = race.content
+
+        if race == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        else:
+            cursor.execute(
+                f'SELECT race_name FROM races WHERE guild_id = {ctx.guild.id} AND race_name = {race}')
+            res = cursor.fetchone()
+
+            if res is not None:
+                char_race = race
+                work2 = False
+            else:
+                await ctx.send('This race does not exist! Please try again!')
+
+    await ctx.send('''Now let's pick a class. Make sure the class exists in the game.''')
+
+    work3 = True
+    while(work3):
+        try:
+            class_val = await client.wait_for("message", timeout=120, check=check)
+        except asyncio.TimeoutError:
+            await ctx.send('You took too long to type a race! Closing...')
+            return
+        class_val = class_val.content
+
+        if class_val == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        else:
+            cursor.execute(
+                f'SELECT class_name FROM classes WHERE guild_id = {ctx.guild.id} AND class_name = {class_val}')
+            res = cursor.fetchone()
+
+            if res is not None:
+                char_class = class_val
+                work3 = False
+            else:
+                await ctx.send('This class does not exist! Please try agian!')
+
+    cursor.execute(
+        f'SELECT stat1, stat2, stat3, stat4, stat5, stat6, stat_dice, stat_reroll FROM stats WHERE guild_id = {ctx.guild.id}')
+    stat_rules = cursor.fetchone()
+
+    cursor.execute(
+        f'SELECT stats_plus_min FROM characters WHERE guild_id = {ctx.guild.id} AND user_id = {userid} AND character_name = {char_class}')
+    class_add_sub = cursor.fetchone()
+
+    cursor.execute(
+        f'SELECT stats_plus_min FROM races WHERE guild_id = {ctx.guild.id} AND race_name = {char_race}')
+    race_add_sub = cursor.fetchone()
+
+    statl = stat_rules[0]
+    stat2 = stat_rules[1]
+    stat3 = stat_rules[2]
+    stat4 = stat_rules[3]
+    stat5 = stat_rules[4]
+    stat6 = stat_rules[5]
+
+    class_stat = class_add_sub[0].split(',')
+    race_stat = race_add_sub[0].split(',')
+
+    stat1_add = int(class_stat[0]) + int(race_stat[0])
+    stat2_add = int(class_stat[1]) + int(race_stat[1])
+    stat3_add = int(class_stat[2]) + int(race_stat[2])
+    stat4_add = int(class_stat[3]) + int(race_stat[3])
+    stat5_add = int(class_stat[4]) + int(race_stat[4])
+    stat6_add = int(class_stat[5]) + int(race_stat[5])
+
+    if stat_rules[6] == 'POINTBUY':
+        current_points = 10
+        await ctx.send(f'''The server uses a point buy system. You are given ten points to distribute amongst the six stats. To start, lets work on {statl} Remember, you will have {stat1_add} added to the value.''')
+
+        work4 = True
+        while(work4):
+            try:
+                stat1_val = await client.wait_for("message", timeout=120, check=check)
+            except asyncio.TimeoutError:
+                await ctx.send('You took too long to type a value! Closing...')
+                return
+            stat1_val = stat1_val.content
+
+            if stat1_val == 'EXIT':
+                await ctx.send('Closing...')
+                return
+            elif can_be_int(stat1_val):
+                if int(stat1_val) > 0:
+                    if current_points >= stat1_val:
+                        stat1_val_int = int(stat1_val)
+                        current_points -= stat1_val_int
+                        stat1_val_int += stat1_add
+                        char_stat_list += f'{str(stat1_val_int)},'
+                    else:
+                        await ctx.send('The value you entered is greater than the current number of points! Please try again!')
+                else:
+                    await ctx.send('The value you entered is not positive! Please try again!')
+            else:
+                await ctx.send('The value you entered is not an integer! Please try again!')
+
+        await ctx.send(f'''Now, lets set the stat {stat2}. Remember, you will have {stat2_add}.''')
+
+        work4 = True
+        while(work4):
+            try:
+                stat2_val = await client.wait_for("message", timeout=120, check=check)
+            except asyncio.TimeoutError:
+                await ctx.send('You took too long to type a value! Closing...')
+                return
+            stat2_val = stat2_val.content
+
+            if stat2_val == 'EXIT':
+                await ctx.send('Closing...')
+                return
+            elif can_be_int(stat2_val):
+                if int(stat2_val) > 0:
+                    if current_points >= int(stat2_val):
+                        stat2_val_int = int(stat2_val)
+                        current_points -= stat2_val_int
+                        stat2_val_int += stat2_add
+                        char_stat_list += f'{str(stat2_val_int)},'
+                    else:
+                        await ctx.send('The value you entered is greater than the current number of points! Please try again!')
+                else:
+                    await ctx.send('The value you entered is not positive! Please try again!')
+            else:
+                await ctx.send('The value you entered is not an integer! Please try again!')
+
+        await ctx.send(f'''Now, lets set the stat {stat3}. Remember, you will have {stat3_add}.''')
+
+        work4 = True
+        while(work4):
+            try:
+                stat3_val = await client.wait_for("message", timeout=120, check=check)
+            except asyncio.TimeoutError:
+                await ctx.send('You took too long to type a value! Closing...')
+                return
+            stat3_val = stat3_val.content
+
+            if stat3_val == 'EXIT':
+                await ctx.send('Closing...')
+                return
+            elif can_be_int(stat3_val):
+                if int(stat3_val) > 0:
+                    if current_points >= int(stat3_val):
+                        stat3_val_int = int(stat3_val)
+                        current_points -= stat3_val_int
+                        stat3_val_int += stat3_add
+                        char_stat_list += f'{str(stat3_val_int)},'
+                    else:
+                        await ctx.send('The value you entered is greater than the current number of points! Please try again!')
+                else:
+                    await ctx.send('The value you entered is not positive! Please try again!')
+            else:
+                await ctx.send('The value you entered is not an integer! Please try again!')
+
+        await ctx.send(f'''Now, lets set the stat {stat4}. Remember, you will have {stat4_add}.''')
+
+        work4 = True
+        while(work4):
+            try:
+                stat4_val = await client.wait_for("message", timeout=120, check=check)
+            except asyncio.TimeoutError:
+                await ctx.send('You took too long to type a value! Closing...')
+                return
+            stat4_val = stat4_val.content
+
+            if stat4_val == 'EXIT':
+                await ctx.send('Closing...')
+                return
+            elif can_be_int(stat4_val):
+                if int(stat4_val) > 0:
+                    if current_points >= int(stat4_val):
+                        stat4_val_int = int(stat4_val)
+                        current_points -= stat4_val_int
+                        stat4_val_int += stat4_add
+                        char_stat_list += f'{str(stat4_val_int)},'
+                    else:
+                        await ctx.send('The value you entered is greater than the current number of points! Please try again!')
+                else:
+                    await ctx.send('The value you entered is not positive! Please try again!')
+            else:
+                await ctx.send('The value you entered is not an integer! Please try again!')
+
+        await ctx.send(f'''Now, lets set the stat {stat5}. Remember, you will have {stat5_add}.''')
+
+        work4 = True
+        while (work4):
+            try:
+                stat5_val = await client.wait_for("message", timeout=120, check=check)
+            except asyncio.TimeoutError:
+                await ctx.send('You took too long to type a value! Closing...')
+                return
+            stat5_val = stat5_val.content
+
+            if stat5_val == 'EXIT':
+                await ctx.send('Closing...')
+                return
+            elif can_be_int(stat5_val):
+                if int(stat5_val) > 0:
+                    if current_points >= int(stat5_val):
+                        stat5_val_int = int(stat5_val)
+                        current_points -= stat5_val_int
+                        stat5_val_int += stat5_add
+                        char_stat_list += f'{str(stat5_val_int)},'
+                    else:
+                        await ctx.send(
+                            'The value you entered is greater than the current number of points! Please try again!')
+                else:
+                    await ctx.send('The value you entered is not positive! Please try again!')
+            else:
+                await ctx.send('The value you entered is not an integer! Please try again!')
+
+        await ctx.send(f'''Now, lets set the stat {stat6}. Remember, you will have {stat6_add}.''')
+
+        work4 = True
+        while (work4):
+            try:
+                stat6_val = await client.wait_for("message", timeout=120, check=check)
+            except asyncio.TimeoutError:
+                await ctx.send('You took too long to type a value! Closing...')
+                return
+            stat6_val = stat6_val.content
+
+            if stat6_val == 'EXIT':
+                await ctx.send('Closing...')
+                return
+            elif can_be_int(stat6_val):
+                if int(stat6_val) > 0:
+                    if current_points >= int(stat6_val):
+                        stat6_val_int = int(stat6_val)
+                        current_points -= stat6_val_int
+                        stat6_val_int += stat6_add
+                        char_stat_list += f'{str(stat6_val_int)}'
+                    else:
+                        await ctx.send(
+                            'The value you entered is greater than the current number of points! Please try again!')
+                else:
+                    await ctx.send('The value you entered is not positive! Please try again!')
+            else:
+                await ctx.send('The value you entered is not an integer! Please try again!')
+
+        await ctx.send(f'The stats list is now {char_stat_list}.')
+
+    elif stat_rules[6].find('d') != -1:
+        await ctx.send(f'''This server uses a dice roll system. This is where a dice is rolled for each stat and then the class values are applied to each stat. Let's start with rolling the stats.''')
+
+        def roll_stat(x):
+            reroll = True
+            while(reroll):
+                x = roll(stat_rules[6])
+                if x > int(stat_rules[7]):
+                    reroll = False
+                else:
+                    reroll = True
+
+        stat1_roll = 0
+        stat2_roll = 0
+        stat3_roll = 0
+        stat4_roll = 0
+        stat5_roll = 0
+        stat6_roll = 0
+
+        roll_stat(stat1_roll)
+        roll_stat(stat2_roll)
+        roll_stat(stat3_roll)
+        roll_stat(stat4_roll)
+        roll_stat(stat5_roll)
+        roll_stat(stat6_roll)
+
+        stat_rolls = [stat1_roll, stat2_roll, stat3_roll, stat4_roll, stat5_roll, stat6_roll]
+
+        await ctx.send(f'''The dice roll values you got are {stat_rolls[0]}, {stat_rolls[1]}, {stat_rolls[2]}, {stat_rolls[3]}, {stat_rolls[4]}, {stat_rolls[5]}. Let's now assign those values starting with {statl}. 
+        Remember, {stat1_add} will be added to the roll.''')
+
+        work4 = True
+        while(work4):
+            try:
+                stat1_val = await client.wait_for("message", timeout=120, check=check)
+            except asyncio.TimeoutError:
+                await ctx.send('You took too long to type a value! Closing...')
+                return
+            stat1_val = stat1_val.content
+
+            if stat1_val == 'EXIT':
+                await ctx.send('Closing...')
+                return
+            elif can_be_int(stat1_val):
+                if int(stat1_val) in stat_rolls:
+                    stat1_val_int = int(stat1_val)
+                    stat1_val_int += stat1_add
+                    char_stat_list += f'{str(stat1_val_int)},'
+                else:
+                    await ctx.send('The value you entered is not in the list! Please type a different value!')
+            else:
+                await ctx.send('The value must be an integer! Please type a different value!')
+
+        await ctx.send(f'''Now, lets set the stat {stat2}. Remember, you will have {stat2_add}.''')
+
+        work4 = True
+        while (work4):
+            try:
+                stat2_val = await client.wait_for("message", timeout=120, check=check)
+            except asyncio.TimeoutError:
+                await ctx.send('You took too long to type a value! Closing...')
+                return
+            stat2_val = stat2_val.content
+
+            if stat2_val == 'EXIT':
+                await ctx.send('Closing...')
+                return
+            elif can_be_int(stat2_val):
+                if int(stat2_val) in stat_rolls:
+                    stat2_val_int = int(stat2_val)
+                    stat2_val_int += stat2_add
+                    char_stat_list += f'{str(stat2_val_int)},'
+                else:
+                    await ctx.send('The value you entered is not in the list! Please type a different value!')
+            else:
+                await ctx.send('The value must be an integer! Please type a different value!')
+
+        await ctx.send(f'''Now, lets set the stat {stat3}. Remember, you will have {stat3_add}.''')
+
+        work4 = True
+        while (work4):
+            try:
+                stat3_val = await client.wait_for("message", timeout=120, check=check)
+            except asyncio.TimeoutError:
+                await ctx.send('You took too long to type a value! Closing...')
+                return
+            stat3_val = stat3_val.content
+
+            if stat3_val == 'EXIT':
+                await ctx.send('Closing...')
+                return
+            elif can_be_int(stat3_val):
+                if int(stat3_val) in stat_rolls:
+                    stat3_val_int = int(stat3_val)
+                    stat3_val_int += stat3_add
+                    char_stat_list += f'{str(stat3_val_int)},'
+                else:
+                    await ctx.send('The value you entered is not in the list! Please type a different value!')
+            else:
+                await ctx.send('The value must be an integer! Please type a different value!')
+
+        await ctx.send(f'''Now, lets set the stat {stat4}. Remember, you will have {stat4_add}.''')
+
+        work4 = True
+        while (work4):
+            try:
+                stat4_val = await client.wait_for("message", timeout=120, check=check)
+            except asyncio.TimeoutError:
+                await ctx.send('You took too long to type a value! Closing...')
+                return
+            stat4_val = stat4_val.content
+
+            if stat4_val == 'EXIT':
+                await ctx.send('Closing...')
+                return
+            elif can_be_int(stat4_val):
+                if int(stat4_val) in stat_rolls:
+                    stat4_val_int = int(stat4_val)
+                    stat4_val_int += stat4_add
+                    char_stat_list += f'{str(stat4_val_int)},'
+                else:
+                    await ctx.send('The value you entered is not in the list! Please type a different value!')
+            else:
+                await ctx.send('The value must be an integer! Please type a different value!')
+
+        await ctx.send(f'''Now, lets set the stat {stat5}. Remember, you will have {stat5_add}.''')
+
+        work4 = True
+        while (work4):
+            try:
+                stat5_val = await client.wait_for("message", timeout=120, check=check)
+            except asyncio.TimeoutError:
+                await ctx.send('You took too long to type a value! Closing...')
+                return
+            stat5_val = stat5_val.content
+
+            if stat5_val == 'EXIT':
+                await ctx.send('Closing...')
+                return
+            elif can_be_int(stat5_val):
+                if int(stat5_val) in stat_rolls:
+                    stat5_val_int = int(stat5_val)
+                    stat5_val_int += stat5_add
+                    char_stat_list += f'{str(stat5_val_int)},'
+                else:
+                    await ctx.send('The value you entered is not in the list! Please type a different value!')
+            else:
+                await ctx.send('The value must be an integer! Please type a different value!')
+
+        await ctx.send(f'''Now, lets set the stat {stat6}. Remember, you will have {stat6_add}.''')
+
+        work4 = True
+        while (work4):
+            try:
+                stat6_val = await client.wait_for("message", timeout=120, check=check)
+            except asyncio.TimeoutError:
+                await ctx.send('You took too long to type a value! Closing...')
+                return
+            stat6_val = stat6_val.content
+
+            if stat6_val == 'EXIT':
+                await ctx.send('Closing...')
+                return
+            elif can_be_int(stat6_val):
+                if int(stat6_val) in stat_rolls:
+                    stat6_val_int = int(stat6_val)
+                    stat6_val_int += stat6_add
+                    char_stat_list += f'{str(stat6_val_int)}'
+                else:
+                    await ctx.send('The value you entered is not in the list! Please type a different value!')
+            else:
+                await ctx.send('The value must be an integer! Please type a different value!')
+
+    else:
+        await ctx.send('An error has occurred, please message the server admin and ask them to change the dice roll.')
+        return
+
+
+    await ctx.send('''Now let's set the character description. Here, you can share the looks and personality of the character. This only has barring on roleplay.''')
+
+    work5 = True
+    while(work5):
+        try:
+            desc = await client.wait_for("message", timeout=120, check=check)
+        except asyncio.TimeoutError:
+            await ctx.send('You took too long to type a value! Closing...')
+            return
+        desc = desc.content
+
+        if desc == 'EXIT':
+            await ctx.send('Closing...')
+            return
+        else:
+            char_desc = desc
+
+    cursor.execute(f'SELECT COUNT(character_name) FROM characters WHERE guild_id = {ctx.guild.id} AND user_id = {user}')
+    res1 = cursor.fetchone()
+
+    num_char = int(res1[0])+1
+
+    cursor.execute(
+        f'SELECT start_weapon, start_armor, start_items, FROM classes WHERE guild_id = {ctx.guild.id} AND class_name = {char_class}')
+    items = cursor.fetchone()
+
+    sql = (
+        'INSERT INTO characters(guild_id, user_id, character_number, character_name, class_id, race_id, stat_list, weapon_id, armor_id, item_id_list, level, exp, character_desc) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')
+    val = (
+    ctx.guild.id, userid, num_char, char_name, char_class, char_race, char_stat_list, items[0], items[1], items[2], '1', '0',
+    char_desc)
+
+    cursor.execute(sql, val)
+    db.commit()
+    cursor.close()
+    db.close()
+
+
 ########################################################################################################################
 #   Cog Data                                                                                                           #
 ########################################################################################################################
@@ -2788,4 +4663,4 @@ for filename in os.listdir('./cogs'):
     if filename.endswith('.py'):
         client.load_extension(f'cogs.{filename[:-3]}')
 
-client.run('TOKEN')
+client.run(TOKEN)
