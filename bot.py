@@ -5223,7 +5223,7 @@ async def create_item_error(ctx, error):
 #   GAME                                                                                                               #
 ########################################################################################################################
 @client.command()
-async def duel(ctx, user: discord.member):
+async def duel(ctx, user : discord.Member):
     ###  IMPORTANT VARIABLES  ##########################################################################################
     db = sqlite3.connect('main.sqlite')
     cursor = db.cursor()
