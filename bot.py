@@ -74,33 +74,35 @@ def can_be_int(val):
         return False
 
 
-async def roll(dice : str):
+def rollTemp(dice : str):
+    diceRoll = 0
     if dice.find('d') != -1:
         val = dice.split('d')
         try:
             count = int(val[0])
         except ValueError:
             diceRoll = -999999999999
-            return diceRoll
+            return int(diceRoll)
 
         try:
             diceMax = int(val[1])
         except ValueError:
             diceRoll = -999999999999
-            return diceRoll
+            return int(diceRoll)
 
         if diceMax < 0:
             diceRoll = -999999999999
-            return diceRoll
+            return int(diceRoll)
 
         if count == 0:
-            return diceMax
+            diceRoll = diceMax
+            return int(diceRoll)
         else:
-            dice = 0
+            diceRoll = 0
             for i in range(count):
-                dice += random.randint(1, diceMax)
+                diceRoll += random.randint(1, diceMax)
 
-            return dice
+            return int(diceRoll)
 
 
 def can_list_be_int(string_list):
@@ -4216,6 +4218,35 @@ async def create_character(ctx):
     char_stat_list = ''
     char_desc = ''
 
+    def rollXDY(diceVal):
+        if diceVal.find('d') == -1:
+            return -2
+        elif diceVal.find('d') != -1:
+            y = diceVal.split('d')
+
+            if can_be_int(y[0]):
+                if int(y[0]) >= 1:
+                    rangeVal = int(y[0])
+
+                    if can_be_int(y[1]):
+                        if int(y[1]) >= 1:
+
+                            diceRoll = 0
+                            for i in range(0, rangeVal):
+                                diceRoll += random.randint(1, int(y[1]))
+
+                            return diceRoll
+                    else:
+                        return
+                elif int(y[0]) == 0:
+                    if can_be_int(y[1]):
+                        if int(y[1]) >= 1:
+                            return int(y[1])
+                        else:
+                            return -2
+            else:
+                return -2
+
     def check(amsg):
         return amsg.author == ctx.author and amsg.channel == ctx.channel
 
@@ -4311,15 +4342,15 @@ async def create_character(ctx):
                 char_class = class_val
                 work3 = False
             else:
-                await ctx.send('This class does not exist! Please try agian!')
+                await ctx.send('This class does not exist! Please try again!')
 
     cursor.execute(
         f'SELECT stat1, stat2, stat3, stat4, stat5, stat6, stat_dice, stat_reroll FROM stats WHERE guild_id = {ctx.guild.id}')
     stat_rules = cursor.fetchone()
 
-    vals = (ctx.guild.id, userid, char_class)
+    vals = (ctx.guild.id, char_class)
     cursor.execute(
-        f'SELECT stats_plus_min FROM characters WHERE guild_id = ? AND user_id = ? AND character_name = ?', vals)
+        f'SELECT stats_plus_min FROM classes WHERE guild_id = ? AND class_name = ?', vals)
     class_add_sub = cursor.fetchone()
 
     vals = (ctx.guild.id, char_race)
@@ -4346,7 +4377,7 @@ async def create_character(ctx):
 
     if stat_rules[6] == 'POINTBUY':
         current_points = 10
-        await ctx.send(f'''Te server uses a point buy system. You are given ten points to distribute amongst the six stats. To start, lets work on {statl} Remember, you will have {stat1_add} added to the value.''')
+        await ctx.send(f'''The server uses a point buy system. You are given ten points to distribute amongst the six stats. To start, lets work on {statl} Remember, you will have {stat1_add} added to the value.''')
 
         work4 = True
         while(work4):
@@ -4519,35 +4550,65 @@ async def create_character(ctx):
         await ctx.send(f'The stats list is now {char_stat_list}.')
 
     elif stat_rules[6].find('d') != -1:
-        await ctx.send(f'''This server uses a dice roll system. This is where a dice is rolled for each stat and then the class values are applied to each stat. Let's start with rolling the stats.''')
+        await ctx.send(f'''This server uses a dice roll system. This is where a dice is rolled for each stat and then the class values are applied to each stat. Let\'s start with rolling the stats.''')
 
-        def roll_stat(x):
-            reroll = True
-            while(reroll):
-                x = roll(stat_rules[6])
-                if x > int(stat_rules[7]):
-                    reroll = False
-                else:
-                    reroll = True
+        reroll = True
+        while(reroll):
+            stat1_roll = rollXDY(str(stat_rules[6]))
 
-        stat1_roll = 0
-        stat2_roll = 0
-        stat3_roll = 0
-        stat4_roll = 0
-        stat5_roll = 0
-        stat6_roll = 0
+            if stat1_roll >=  int(stat_rules[7]):
+                reroll = False
+            else:
+                reroll = True
 
-        roll_stat(stat1_roll)
-        roll_stat(stat2_roll)
-        roll_stat(stat3_roll)
-        roll_stat(stat4_roll)
-        roll_stat(stat5_roll)
-        roll_stat(stat6_roll)
+        reroll = True
+        while (reroll):
+            stat2_roll = rollXDY(str(stat_rules[6]))
 
-        stat_rolls = [stat1_roll, stat2_roll, stat3_roll, stat4_roll, stat5_roll, stat6_roll]
+            if stat2_roll >= int(stat_rules[7]):
+                reroll = False
+            else:
+                reroll = True
 
-        await ctx.send(f'''The dice roll values you got are {stat_rolls[0]}, {stat_rolls[1]}, {stat_rolls[2]}, {stat_rolls[3]}, {stat_rolls[4]}, {stat_rolls[5]}. Let's now assign those values starting with {statl}. 
-        Remember, {stat1_add} will be added to the roll.''')
+        reroll = True
+        while (reroll):
+            stat3_roll = rollXDY(str(stat_rules[6]))
+
+            if stat3_roll >= int(stat_rules[7]):
+                reroll = False
+            else:
+                reroll = True
+
+        reroll = True
+        while (reroll):
+            stat4_roll = rollXDY(str(stat_rules[6]))
+
+            if stat4_roll >= int(stat_rules[7]):
+                reroll = False
+            else:
+                reroll = True
+
+        reroll = True
+        while (reroll):
+            stat5_roll = rollXDY(str(stat_rules[6]))
+
+            if stat5_roll >= int(stat_rules[7]):
+                reroll = False
+            else:
+                reroll = True
+
+        reroll = True
+        while (reroll):
+            stat6_roll = rollXDY(str(stat_rules[6]))
+
+            if stat6_roll >= int(stat_rules[7]):
+                reroll = False
+            else:
+                reroll = True
+
+        stat_rolls = [int(stat1_roll), int(stat2_roll), int(stat3_roll), int(stat4_roll), int(stat5_roll), int(stat6_roll)]
+
+        await ctx.send(f'''The dice roll values you got are {stat_rolls[0]}, {stat_rolls[1]}, {stat_rolls[2]}, {stat_rolls[3]}, {stat_rolls[4]}, {stat_rolls[5]}. Let\'s now assign those values starting with {statl}. Remember, {stat1_add} will be added to the roll.''')
 
         work4 = True
         while(work4):
@@ -4566,6 +4627,7 @@ async def create_character(ctx):
                     stat1_val_int = int(stat1_val)
                     stat1_val_int += stat1_add
                     char_stat_list += f'{str(stat1_val_int)},'
+                    work4 = False
                 else:
                     await ctx.send('The value you entered is not in the list! Please type a different value!')
             else:
@@ -4590,6 +4652,7 @@ async def create_character(ctx):
                     stat2_val_int = int(stat2_val)
                     stat2_val_int += stat2_add
                     char_stat_list += f'{str(stat2_val_int)},'
+                    work4 = False
                 else:
                     await ctx.send('The value you entered is not in the list! Please type a different value!')
             else:
@@ -4614,6 +4677,7 @@ async def create_character(ctx):
                     stat3_val_int = int(stat3_val)
                     stat3_val_int += stat3_add
                     char_stat_list += f'{str(stat3_val_int)},'
+                    work4 = False
                 else:
                     await ctx.send('The value you entered is not in the list! Please type a different value!')
             else:
@@ -4638,6 +4702,7 @@ async def create_character(ctx):
                     stat4_val_int = int(stat4_val)
                     stat4_val_int += stat4_add
                     char_stat_list += f'{str(stat4_val_int)},'
+                    work4 = False
                 else:
                     await ctx.send('The value you entered is not in the list! Please type a different value!')
             else:
@@ -4662,6 +4727,7 @@ async def create_character(ctx):
                     stat5_val_int = int(stat5_val)
                     stat5_val_int += stat5_add
                     char_stat_list += f'{str(stat5_val_int)},'
+                    work4 = False
                 else:
                     await ctx.send('The value you entered is not in the list! Please type a different value!')
             else:
@@ -4686,6 +4752,7 @@ async def create_character(ctx):
                     stat6_val_int = int(stat6_val)
                     stat6_val_int += stat6_add
                     char_stat_list += f'{str(stat6_val_int)}'
+                    work4 = False
                 else:
                     await ctx.send('The value you entered is not in the list! Please type a different value!')
             else:
@@ -4712,6 +4779,8 @@ async def create_character(ctx):
             return
         else:
             char_desc = desc
+            await ctx.send(f'The description is now {desc}!')
+            work5 = False
 
     vals = (ctx.guild.id, userid)
     cursor.execute(f'SELECT COUNT(character_name) FROM characters WHERE guild_id = ? AND user_id = ?', vals)
@@ -4721,7 +4790,7 @@ async def create_character(ctx):
 
     vals = (ctx.guild.id, char_class)
     cursor.execute(
-        f'SELECT start_weapon, start_armor, start_items, FROM classes WHERE guild_id = ? AND class_name = ?', vals)
+        f'SELECT start_weapon, start_armor, start_items FROM classes WHERE guild_id = ? AND class_name = ?', vals)
     items = cursor.fetchone()
 
     sql = (
@@ -4734,6 +4803,8 @@ async def create_character(ctx):
     db.commit()
     cursor.close()
     db.close()
+
+    await ctx.send(f'{char_name} has been made!')
 
 
 @client.command()
@@ -5505,7 +5576,7 @@ async def duel(ctx, user: discord.member):
             result = cursor.fetchone()
 
             if result[0] != 'NONE':
-                authordamage = await roll(result[0])
+                authordamage = await rollTemp(result[0])
             else:
                 authordamage = 0
 
@@ -5628,7 +5699,7 @@ async def duel(ctx, user: discord.member):
             result = cursor.fetchone()
 
             if result[0] != 'NONE':
-                userdamage = await roll(result[0])
+                userdamage = await rollTemp(result[0])
             else:
                 userdamage = 0
 
@@ -5839,8 +5910,8 @@ async def duel(ctx, user: discord.member):
         author_init_add = author_stat6
         user_init_add = user_stat6
 
-    author_roll_init = await roll('1d20')
-    user_roll_init = await roll('1d20')
+    author_roll_init = await rollTemp('1d20')
+    user_roll_init = await rollTemp('1d20')
 
     author_roll_init += author_init_add
     user_roll_init += user_init_add
@@ -5999,8 +6070,8 @@ async def duel(ctx, user: discord.member):
 
                 if authorturn == 'ATTACK':
 
-                    attack_val = await roll('1d20') + author_add_to_attack
-                    attack_dmg = await roll(author_unarmed_damage) + author_add_to_attack
+                    attack_val = await rollTemp('1d20') + author_add_to_attack
+                    attack_dmg = await rollTemp(author_unarmed_damage) + author_add_to_attack
 
                     if ac_comp_roll == 'AC':
                         if attack_val >= user_ac:
@@ -6009,7 +6080,7 @@ async def duel(ctx, user: discord.member):
                         else:
                             await ctx.send(f'{author_char_name} missed!')
                     elif ac_comp_roll == 'COMPROLL':
-                        user_dodge = await roll('1d20') + user_add_to_ac_roll
+                        user_dodge = await rollTemp('1d20') + user_add_to_ac_roll
 
                         if attack_val >= user_dodge:
                             user_health -= attack_dmg
@@ -6099,10 +6170,10 @@ async def duel(ctx, user: discord.member):
                                         elif spell_save == 'NONE':
                                             add_to_save = 0
 
-                                        user_spell_roll = await roll('1d20') + add_to_save
+                                        user_spell_roll = await rollTemp('1d20') + add_to_save
 
                                         if user_spell_roll < author_spell_save:
-                                            spell_dmg = await roll(spell_damage)
+                                            spell_dmg = await rollTemp(spell_damage)
 
                                             user_health -= spell_dmg
                                             await ctx.send(f'{user_char_name} took {spell_dmg}')
@@ -6117,7 +6188,7 @@ async def duel(ctx, user: discord.member):
                                             elif spell_uses == 'EP':
                                                 author_energy -= 5
                                     elif spell_range == 'SELF':
-                                        spell_dmg = await roll(spell_damage)
+                                        spell_dmg = await rollTemp(spell_damage)
 
                                         author_health -= spell_dmg
                                         await ctx.send(f'{author_char_name} took {spell_dmg}')
@@ -6145,7 +6216,7 @@ async def duel(ctx, user: discord.member):
                                         elif spell_save == 'NONE':
                                             add_to_save = 0
 
-                                        user_spell_roll = await roll('1d20') + add_to_save
+                                        user_spell_roll = await rollTemp('1d20') + add_to_save
 
                                         if user_spell_roll < author_spell_save:
                                             usercond = buff_debuff_cond
@@ -6159,7 +6230,7 @@ async def duel(ctx, user: discord.member):
                                                 await ctx.send('There is no condition! Please try again!')
                                                 usercond = 'NONE'
                                             else:
-                                                usercondturn = await roll(result[0])
+                                                usercondturn = await rollTemp(result[0])
 
                                                 await ctx.send(f'{user_char_name} effected with condition {usercond} for {usercondturn}')
                                                 if spell_uses == 'MP':
@@ -6185,7 +6256,7 @@ async def duel(ctx, user: discord.member):
                                             await ctx.send('There is no condition! Please try again!')
                                             authorcond = 'NONE'
                                         else:
-                                            authorcondturn = await roll(result[0])
+                                            authorcondturn = await rollTemp(result[0])
 
                                             await ctx.send(f'{author_char_name} effected with condition {authorcond} for {authorcondturn}')
                                             if spell_uses == 'MP':
@@ -6209,7 +6280,7 @@ async def duel(ctx, user: discord.member):
                         await ctx.send('There is no condition! Please try again!')
                         authorcond = 'NONE'
                     else:
-                        authorcondturn = await roll(result[0])
+                        authorcondturn = await rollTemp(result[0])
 
                     test1 = False
 
@@ -6310,8 +6381,8 @@ async def duel(ctx, user: discord.member):
 
                 if userturn == 'ATTACK':
 
-                    attack_val = await roll('1d20') + user_add_to_attack
-                    attack_dmg = await roll(user_unarmed_damage) + user_add_to_attack
+                    attack_val = await rollTemp('1d20') + user_add_to_attack
+                    attack_dmg = await rollTemp(user_unarmed_damage) + user_add_to_attack
 
                     if ac_comp_roll == 'AC':
                         if attack_val >= author_ac:
@@ -6320,7 +6391,7 @@ async def duel(ctx, user: discord.member):
                         else:
                             await ctx.send(f'{user_char_name} missed!')
                     elif ac_comp_roll == 'COMPROLL':
-                        author_dodge = await roll('1d20') + author_add_to_ac_roll
+                        author_dodge = await rollTemp('1d20') + author_add_to_ac_roll
 
                         if attack_val >= author_dodge:
                             author_health -= attack_dmg
@@ -6414,10 +6485,10 @@ async def duel(ctx, user: discord.member):
                                         elif spell_save == 'NONE':
                                             add_to_save = 0
 
-                                        author_spell_roll = await roll('1d20') + add_to_save
+                                        author_spell_roll = await rollTemp('1d20') + add_to_save
 
                                         if author_spell_roll < user_spell_save:
-                                            spell_dmg = await roll(spell_damage)
+                                            spell_dmg = await rollTemp(spell_damage)
 
                                             author_health -= spell_dmg
                                             await ctx.send(f'{author_char_name} took {spell_dmg}')
@@ -6432,7 +6503,7 @@ async def duel(ctx, user: discord.member):
                                             elif spell_uses == 'EP':
                                                 user_energy -= 5
                                     elif spell_range == 'SELF':
-                                        spell_dmg = await roll(spell_damage)
+                                        spell_dmg = await rollTemp(spell_damage)
 
                                         user_health -= spell_dmg
                                         await ctx.send(f'{user_char_name} took {spell_dmg}')
@@ -6460,7 +6531,7 @@ async def duel(ctx, user: discord.member):
                                         elif spell_save == 'NONE':
                                             add_to_save = 0
 
-                                        author_spell_roll = await roll('1d20') + add_to_save
+                                        author_spell_roll = await rollTemp('1d20') + add_to_save
 
                                         if author_spell_roll < user_spell_save:
                                             authorcond = buff_debuff_cond
@@ -6474,7 +6545,7 @@ async def duel(ctx, user: discord.member):
                                                 await ctx.send('There is no condition! Please try again!')
                                                 authorcond = 'NONE'
                                             else:
-                                                authorcondturn = await roll(result[0])
+                                                authorcondturn = await rollTemp(result[0])
 
                                                 await ctx.send(
                                                     f'{author_char_name} effected with condition {authorcond} for {authorcondturn}')
@@ -6501,7 +6572,7 @@ async def duel(ctx, user: discord.member):
                                             await ctx.send('There is no condition! Please try again!')
                                             usercond = 'NONE'
                                         else:
-                                            usercondturn = await roll(result[0])
+                                            usercondturn = await rollTemp(result[0])
 
                                             await ctx.send(
                                                 f'{user_char_name} effected with condition {usercond} for {usercondturn}')
@@ -6526,7 +6597,7 @@ async def duel(ctx, user: discord.member):
                         await ctx.send('There is no condition! Please try again!')
                         usercond = 'NONE'
                     else:
-                        usercondturn = await roll(result[0])
+                        usercondturn = await rollTemp(result[0])
 
                     test1 = False
 
@@ -6704,9 +6775,45 @@ async def reload_cog_error(ctx, error):
     else:
         await ctx.send('An error has occurred!')
 
+########################################################################################################################
+#   TEST COMMANDS                                                                                                      #
+########################################################################################################################
 @client.command()
 async def seven_page_muda(ctx):
     await ctx.send('''MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA''')
+
+
+@client.command()
+async def roll(ctx, diceVal):
+    if diceVal.find('d') == -1:
+        await ctx.send('The format of the dice is wrong. Please try again!\n```roll [diceVal]\nwhere diceVal is in XdY form where X is the number of dice to roll and Y is the max value of the dice. These both must be positive integers.```')
+    elif diceVal.find('d') != -1:
+        y = diceVal.split('d')
+
+        if can_be_int(y[0]):
+            if int(y[0]) >= 1:
+                rangeVal = int(y[0])
+
+                if can_be_int(y[1]):
+                    if int(y[1]) >= 1:
+
+                        diceRoll = 0
+                        for i in range(0, rangeVal):
+                            diceRoll += random.randint(1, int(y[1]))
+
+                        await ctx.send(f'You rolled a {diceRoll}!')
+                else:
+                    await ctx.send(f'Y must be positive!\n```roll [diceVal]\nwhere diceVal is in XdY form where X is the number of dice to roll and Y is the max value of the dice. These both must be positive integers.```')
+            elif int(y[0]) == 0:
+                if can_be_int(y[1]):
+                    if int(y[1]) >= 1:
+                        await ctx.send(f'You rolled a {y[1]}!')
+                    else:
+                        await ctx.send(f'Y must be positive!\n```roll [diceVal]\nwhere diceVal is in XdY form where X is the number of dice to roll and Y is the max value of the dice. These both must be positive integers.```')
+        else:
+            await ctx.send(f'X must be positive!\n```roll [diceVal]\nwhere diceVal is in XdY form where X is the number of dice to roll and Y is the max value of the dice. These both must be positive integers.```')
+
+
 
 ########################################################################################################################
 #   OTHER IMPORTANT CODE                                                                                               #
