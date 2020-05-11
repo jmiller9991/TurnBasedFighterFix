@@ -66,7 +66,7 @@ async def get_level_list_string(client, message):
     return level_list[str(message.guild.id)]
 
 
-async def can_be_int(val):
+def can_be_int(val):
     try:
         int(val)
         return True
@@ -103,7 +103,7 @@ async def roll(dice : str):
             return dice
 
 
-async def can_list_be_int(string_list):
+def can_list_be_int(string_list):
     correct = True
     for i in string_list:
         if can_be_int(i):
@@ -221,6 +221,7 @@ async def on_ready():
             weapon_name TEXT,
             weapon_type TEXT,
             weapon_cost TEXT,
+            weapon_add_attack TEXT,
             weapon_desc TEXT
         )
     ''')
@@ -233,8 +234,7 @@ async def on_ready():
             guild_id TEXT,
             armor_name TEXT,
             armor_type TEXT,
-            armor_plus_ac TEXT,
-            armor_plus_roll TEXT,
+            armor_plus_ac_roll TEXT,
             armor_cost TEXT,
             armor_desc TEXT
         )
@@ -313,7 +313,7 @@ async def on_ready():
         CREATE TABLE IF NOT EXISTS player_weapon(
             guild_id TEXT,
             user_id TEXT,
-            weapon_name TEXT,
+            weapon_name TEXT
         )
     ''')
 
@@ -324,7 +324,7 @@ async def on_ready():
         CREATE TABLE IF NOT EXISTS player_armor(
             guild_id TEXT,
             user_id TEXT,
-            armor_name TEXT,
+            armor_name TEXT
         )
     ''')
 
@@ -335,7 +335,7 @@ async def on_ready():
         CREATE TABLE IF NOT EXISTS player_potion(
             guild_id TEXT,
             user_id TEXT,
-            potion_name TEXT,
+            potion_name TEXT
         )
     ''')
 
@@ -578,6 +578,17 @@ async def on_member_join(member):
            Please read the rules by calling view_all_rules, then create a character using character_creator!''')
     print(f'{member} has joined the server!!!!!!! WELCOME!!!!')
 
+    db = sqlite3.connect('main.sqlite')
+    cursor = db.cursor()
+
+    sql = ('INSERT INTO player_gold(guild_id, user_id, gold) VALUES(?, ?, ?)')
+    val = (member.guild.id, member.id, '0')
+
+    cursor.execute(sql, val)
+    db.commit()
+    cursor.close()
+    db.close()
+
 
 @client.event
 async def on_member_remove(member):
@@ -585,15 +596,16 @@ async def on_member_remove(member):
     cursor = db.cursor()
 
     # Delete from characters
-    cursor.execute(f'DELETE FROM characters WHERE guild_id = {member.guild.id} AND user_id = {member.id}')
+    vals = (member.guild.id, member.id)
+    cursor.execute(f'DELETE FROM characters WHERE guild_id = ? AND user_id = ?', vals)
     # Delete from player_weapon
-    cursor.execute(f'DELETE FROM player_weapon WHERE guild_id = {member.guild.id} AND user_id = {member.id}')
+    cursor.execute(f'DELETE FROM player_weapon WHERE guild_id = ? AND user_id = ?', vals)
     # Delete from player_armor
-    cursor.execute(f'DELETE FROM player_armor WHERE guild_id = {member.guild.id} AND user_id = {member.id}')
+    cursor.execute(f'DELETE FROM player_armor WHERE guild_id = ? AND user_id = ?', vals)
     # Delete from player_potion
-    cursor.execute(f'DELETE FROM player_potion WHERE guild_id = {member.guild.id} AND user_id = {member.id}')
+    cursor.execute(f'DELETE FROM player_potion WHERE guild_id = ? AND user_id = ?', vals)
     # Delete from player_gold
-    cursor.execute(f'DELETE FROM player_gold WHERE guild_id = {member.guild.id} AND user_id = {member.id}')
+    cursor.execute(f'DELETE FROM player_gold WHERE guild_id = ? AND user_id = ?', vals)
     db.commit()
     cursor.close()
     db.close()
@@ -714,7 +726,7 @@ async def setup(ctx):
         return
 
 
-    await ctx.send('''Lets start by picking the name for your health, mana, and energy values.
+    await ctx.send('''Thank you for setting up the Turn Based Duel Bot. You can type EXIT at any time to close the command. Lets start by picking the name for your health, mana, and energy values.
         These values act as follows:
         -Health: Refers to the value to track damage taken, and the first person to reach 0 health loses
         -Mana: Refers to the value that determines if you can use magic spells
@@ -731,6 +743,10 @@ async def setup(ctx):
     hp = await client.wait_for("message", check=check)
     hp = hp.content
 
+    if hp == 'EXIT':
+        await ctx.send('Thank you for using the command!')
+        return
+
     with open('hp.json', 'r') as f:
         hp_dict = json.load(f)
 
@@ -744,6 +760,10 @@ async def setup(ctx):
 
     mp = await client.wait_for("message", check=check)
     mp = mp.content
+
+    if mp == 'EXIT':
+        await ctx.send('Thank you for using the command!')
+        return
 
     with open('mp.json', 'r') as f:
         mp_dict = json.load(f)
@@ -759,6 +779,10 @@ async def setup(ctx):
     ep = await client.wait_for("message", check=check)
     ep = ep.content
 
+    if ep == 'EXIT':
+        await ctx.send('Thank you for using the command!')
+        return
+
     with open('ep.json', 'r') as f:
         ep_dict = json.load(f)
 
@@ -772,6 +796,10 @@ async def setup(ctx):
 
     gold = await client.wait_for("message", check=check)
     gold = gold.content
+
+    if gold == 'EXIT':
+        await ctx.send('Thank you for using the command!')
+        return
 
     with open('goldname.json', 'r') as f:
         gold_dict = json.load(f)
@@ -793,7 +821,10 @@ async def setup(ctx):
         statstring = await client.wait_for("message", check=check)
         statstring = statstring.content
 
-        if len(statstring.split(',')) != 6:
+        if statstring == 'EXIT':
+            await ctx.send('Thank you for using the command!')
+            return
+        elif len(statstring.split(',')) != 6:
             await ctx.send('The format is incorrect please retry')
             test = True
         else:
@@ -834,7 +865,10 @@ async def setup(ctx):
         dice = await client.wait_for("message", check=check)
         dice = dice.content
 
-        if dice == 'POINTBUY':
+        if dice == 'EXIT':
+            await ctx.send('Thank you for using the command!')
+            return
+        elif dice == 'POINTBUY':
             # Stat DB dice type to dice
             db = sqlite3.connect('main.sqlite')
             cursor = db.cursor()
@@ -887,19 +921,29 @@ async def setup(ctx):
         await ctx.send('''Since you picked the dice rolling system, do you want to have a minimum stat value. If any dice roll is less than or equal to this value, it will be re-rolled till a better value is present.'
                        If you do not want any value, set the value to -1''')
 
-        reroll_val = await client.wait_for("message", check=check)
-        reroll_val = reroll_val.content
+        test100 = True
+        while(test100):
+            reroll_val = await client.wait_for("message", check=check)
+            reroll_val = reroll_val.content
 
-        # Stat DB set re-roll value
-        db = sqlite3.connect('main.sqlite')
-        cursor = db.cursor()
+            if reroll_val == 'EXIT':
+                await ctx.send('Thank you for using the command!')
+                return
+            elif can_be_int(reroll_val):
+                # Stat DB set re-roll value
+                db = sqlite3.connect('main.sqlite')
+                cursor = db.cursor()
 
-        sql = ('UPDATE stats SET stat_reroll = ? WHERE guild_id = ?')
-        val = (reroll_val, ctx.guild.id)
-        cursor.execute(sql, val)
-        db.commit()
-        cursor.close()
-        db.close()
+                sql = ('UPDATE stats SET stat_reroll = ? WHERE guild_id = ?')
+                val = (reroll_val, ctx.guild.id)
+                cursor.execute(sql, val)
+                db.commit()
+                cursor.close()
+                db.close()
+                test100 = False
+            else:
+                await ctx.send('This value must be an integer. Please try again!')
+
 
         await ctx.send(f'Re-roll value set to {reroll_val}')
 
@@ -911,7 +955,10 @@ async def setup(ctx):
     while(test2):
         charNum = await client.wait_for("message", check=check)
         charNum = charNum.content
-        if can_be_int(charNum):
+        if charNum == 'EXIT':
+            await ctx.send('Thank you for using the command!')
+            return
+        elif can_be_int(charNum):
             if int(charNum) > 1:
                 # set num characters to charNum
                 db = sqlite3.connect('main.sqlite')
@@ -954,7 +1001,10 @@ async def setup(ctx):
         while(test3):
             charlvl = await client.wait_for("message", check=check)
             charlvl = charlvl.content
-            if can_be_int(charlvl):
+            if charlvl == 'EXIT':
+                await ctx.send('Thank you for using the command!')
+                return
+            elif can_be_int(charlvl):
                 if int(charlvl) >= 0:
                     # DB work set level to charlvl
                     db = sqlite3.connect('main.sqlite')
@@ -1011,7 +1061,10 @@ async def setup(ctx):
         lvl_list = await client.wait_for("message", check=check)
         lvl_list = lvl_list.content
 
-        if can_be_int(lvl_list):
+        if lvl_list == 'EXIT':
+            await ctx.send('Thank you for using the command!')
+            return
+        elif can_be_int(lvl_list):
             with open('lvllist.json', 'r') as f:
                 lvl_list_dict = json.load(f)
 
@@ -1045,14 +1098,17 @@ async def setup(ctx):
     await ctx.send('''Now lets set the experience for a win or a loss. 
                       Please write this in terms of X,Y where X is the experience for a win and Y is the experience for a loss.''')
 
-    # exp read in
-    win_loss = await client.wait_for("message", check=check)
-    win_loss = win_loss.content
-
-    # check formatting
+    # exp read in and check formatting
     test5 = True
     while(test5):
-        if win_loss.find(',') != -1:
+        win_loss = await client.wait_for("message", check=check)
+        win_loss = win_loss.content
+
+
+        if win_loss == 'EXIT':
+            await ctx.send('Thank you for using the command!')
+            return
+        elif win_loss.find(',') != -1:
             y = win_loss.split(',')
 
             if (can_be_int(y[0])) and (can_be_int(y[1])):
@@ -1091,7 +1147,10 @@ async def setup(ctx):
 
 
         #check if correct
-        if ac_comp == "AC":
+        if ac_comp == 'EXIT':
+            await ctx.send('Thank you for using the command!')
+            return
+        elif ac_comp == "AC":
             # add to rules db
             db = sqlite3.connect('main.sqlite')
             cursor = db.cursor()
@@ -1140,7 +1199,10 @@ async def setup(ctx):
             stat = await client.wait_for("message", check=check)
             stat = stat.content
 
-            if stat == result[0]:
+            if stat == 'EXIT':
+                await ctx.send('Thank you for using the command!')
+                return
+            elif stat == result[0]:
                 db = sqlite3.connect('main.sqlite')
                 cursor = db.cursor()
 
@@ -1232,7 +1294,10 @@ async def setup(ctx):
         forfeit_rule = forfeit_rule.content
 
         # check if correct
-        if forfeit_rule == "YES" or forfeit_rule == "NO":
+        if forfeit_rule == 'EXIT':
+            await ctx.send('Thank you for using the command!')
+            return
+        elif forfeit_rule == "YES" or forfeit_rule == "NO":
             # add to rules db
             db = sqlite3.connect('main.sqlite')
             cursor = db.cursor()
@@ -1265,7 +1330,10 @@ async def setup(ctx):
         stat_init = stat_init.content
 
         # check if it matches values
-        if stat_init == result1[0]:
+        if stat_init == 'EXIT':
+            await ctx.send('Thank you for using the command!')
+            return
+        elif stat_init == result1[0]:
             # add to db
             db = sqlite3.connect('main.sqlite')
             cursor = db.cursor()
@@ -1419,7 +1487,7 @@ async def update_all_stats(ctx):
         return amsg.author == ctx.author and amsg.channel == ctx.channel
 
     # Stats list
-    await ctx.send('''Lets give your stats a name. Stats are used to determine your characters abilities. You have six stats and must give names to all six.
+    await ctx.send('''Lets give your stats a name. Stats are used to determine your characters abilities. You have six stats and must give names to all six. You can type EXIT at anytime to close the command.
                     However, if you desire, you can leave some with the name of NOTHING if you don't want it to do anything. Please format the stats name in the following manner. stat1,stat2,stat3,stat4,stat5,stat6. 
                    ''')
 
@@ -1429,7 +1497,10 @@ async def update_all_stats(ctx):
         statstring = await client.wait_for("message", check=check)
         statstring = statstring.content
 
-        if len(statstring.split(',')) != 6:
+        if statstring == 'EXIT':
+            await ctx.send('Thank you for using the command!')
+            return
+        elif len(statstring.split(',')) != 6:
             await ctx.send('The format is incorrect please retry')
             test = True
         else:
@@ -1472,7 +1543,10 @@ async def update_all_stats(ctx):
         dice = await client.wait_for("message", check=check)
         dice = dice.content
 
-        if dice == 'POINTBUY':
+        if dice == 'EXIT':
+            await ctx.send('Thank you for using the command!')
+            return
+        elif dice == 'POINTBUY':
             # Stat DB dice type to dice
             db = sqlite3.connect('main.sqlite')
             cursor = db.cursor()
@@ -1527,8 +1601,11 @@ async def update_all_stats(ctx):
         reroll_val = await client.wait_for("message", check=check)
         reroll_val = reroll_val.content
 
-        # Stat DB set re-roll value
-        if (can_be_int(reroll_val)):
+        if reroll_val == 'EXIT':
+            await ctx.send('Thank you for using the command!')
+            return
+        elif can_be_int(reroll_val):
+            # Stat DB set re-roll value
             db = sqlite3.connect('main.sqlite')
             cursor = db.cursor()
 
@@ -1538,6 +1615,9 @@ async def update_all_stats(ctx):
             db.commit()
             cursor.close()
             db.close()
+            test100 = False
+        else:
+            await ctx.send('This value must be an integer. Please try again!')
 
             await ctx.send(f'Re-roll value set to {reroll_val}')
         await ctx.send('All done!')
@@ -1656,8 +1736,8 @@ async def view_all_rules(ctx):
     if_result_0_bigger_1 = f'''Since you are allowed more than one character, you can make a new character when the last character reaches level {result[1]}.\n'''
 
     rules_second = f'''This then leads into fights. Players start by having initiative rolled. This is where a d20 is rolled for you and your {stat_7[0]} stat is then added. 
-    The person who rolled highest gets to go first. From there, the player who goes first can either attack with their weapon by calling ATTACK, use a spell by calling SPELL [the spell to use], 
-    or use a potion by calling POTION [the potion to use]. '''
+    The person who rolled highest gets to go first. From there, the player who goes first can either attack with their weapon by calling ATTACK, use a spell by calling SPELL, 
+    or use a potion by calling ITEM. '''
 
     forfeit_rules = f'''A player can type forfeit if they want to end the battle as a loss. '''
 
@@ -1668,7 +1748,7 @@ async def view_all_rules(ctx):
 
     rules_fourth = f'''A spell must be saved against. A d20 is rolled by the defending player and if they fail the save, they take the spell damage. If they succeed, they take no damage. 
     A spell save is determined by the character level added to the spells specific save stat. Some spells do not have a save, but these are for buffing a character. The player whose health hits zero loses. 
-    The loser receives{result[3]} exp and the winner receives {result[2]}. '''
+    The loser receives {result[3]} exp and the winner receives {result[2]}. '''
 
     main_string = start_rules + (if_result_0_bigger_1 if int(result[0]) == 1 else '') + rules_second + (forfeit_rules if result[6] == 'YES' else '') + (ac_third if result[4] == 'AC' else comp_roll_third) + rules_fourth
 
@@ -1794,7 +1874,7 @@ async def update_all_rules(ctx):
         return amsg.author == ctx.author and amsg.channel == ctx.channel
 
     await ctx.send(
-        '''Now lets focus on rules. First, how many characters are people allowed to have? The value must be greater than or equal to 1!''')
+        '''Lets focus on rules. At any point you can type EXIT to close this command.  First, how many characters are people allowed to have? The value must be greater than or equal to 1!''')
 
     character_at_level = False
     test2 = True
@@ -1802,7 +1882,10 @@ async def update_all_rules(ctx):
         charNum = await client.wait_for("message", check=check)
         charNum = charNum.content
         if can_be_int(charNum):
-            if int(charNum) > 1:
+            if charNum == 'EXIT':
+                await ctx.send('Thank you for using the command!')
+                return
+            elif int(charNum) > 1:
                 # set num characters to charNum
                 db = sqlite3.connect('main.sqlite')
                 cursor = db.cursor()
@@ -1845,7 +1928,10 @@ async def update_all_rules(ctx):
         while (test3):
             charlvl = await client.wait_for("message", check=check)
             charlvl = charlvl.content
-            if can_be_int(charlvl):
+            if charlvl == 'EXIT':
+                await ctx.send('Thank you for using the command!')
+                return
+            elif can_be_int(charlvl):
                 if int(charlvl) >= 0:
                     # DB work set level to charlvl
                     db = sqlite3.connect('main.sqlite')
@@ -1881,14 +1967,16 @@ async def update_all_rules(ctx):
     await ctx.send('''Now lets set the experience for a win or a loss. 
                          Please write this in terms of X,Y where X is the experience for a win and Y is the experience for a loss.''')
 
-    # exp read in
-    win_loss = await client.wait_for("message", check=check)
-    win_loss = win_loss.content
-
-    # check formatting
+    # exp read in and check formatting
     test5 = True
     while (test5):
-        if win_loss.find(',') != -1:
+        win_loss = await client.wait_for("message", check=check)
+        win_loss = win_loss.content
+
+        if win_loss == 'EXIT':
+            await ctx.send('Thank you for using the command!')
+            return
+        elif win_loss.find(',') != -1:
             y = win_loss.split(',')
 
             if (can_be_int(y[0])) and (can_be_int(y[1])):
@@ -1924,7 +2012,10 @@ async def update_all_rules(ctx):
         ac_comp = ac_comp.content
 
         # check if correct
-        if ac_comp == "AC":
+        if ac_comp == 'EXIT':
+            await ctx.send('Thank you for using the command!')
+            return
+        elif ac_comp == "AC":
             # add to rules db
             db = sqlite3.connect('main.sqlite')
             cursor = db.cursor()
@@ -1973,7 +2064,10 @@ async def update_all_rules(ctx):
             stat = await client.wait_for("message", check=check)
             stat = stat.content
 
-            if stat == result[0]:
+            if stat == 'EXIT':
+                await ctx.send('Thank you for using the command!')
+                return
+            elif stat == result[0]:
                 db = sqlite3.connect('main.sqlite')
                 cursor = db.cursor()
 
@@ -2065,7 +2159,10 @@ async def update_all_rules(ctx):
         forfeit_rule = forfeit_rule.content
 
         # check if correct
-        if forfeit_rule == "YES" or forfeit_rule == "NO":
+        if forfeit_rule == 'EXIT':
+            await ctx.send('Thank you for using the command!')
+            return
+        elif forfeit_rule == "YES" or forfeit_rule == "NO":
             # add to rules db
             db = sqlite3.connect('main.sqlite')
             cursor = db.cursor()
@@ -2098,7 +2195,10 @@ async def update_all_rules(ctx):
         stat_init = stat_init.content
 
         # check if it matches values
-        if stat_init == result1[0]:
+        if stat_init == 'EXIT':
+            await ctx.send('Thank you for using the command!')
+            return
+        elif stat_init == result1[0]:
             # add to db
             db = sqlite3.connect('main.sqlite')
             cursor = db.cursor()
@@ -2790,23 +2890,28 @@ async def condition_creator(ctx):
         db = sqlite3.connect('main.sqlite')
         cursor = db.cursor()
 
+        vals = (ctx.guild.id, name)
         cursor.execute(
-            f'SELECT condition_name FROM effectcond WHERE guild_id = {ctx.guild.id} AND condition_name = {name}')
+            f'SELECT condition_name FROM effectcond WHERE (guild_id = ?) AND (condition_name = ?)', vals)
         result = cursor.fetchone()
 
-        if result is not None:
+        if result is None:
+            if name == 'EXIT':
+                await ctx.send('Closing...')
+                return
+            elif name == 'NONE':
+                await ctx.send('The name cannot be NONE.')
+                work1 = True
+            elif name == 'DONE':
+                await ctx.send('The name cannot be DONE.')
+                work1 = True
+            else:
+                cond_name = name
+                work1 = False
+        else:
             await ctx.send('The name you picked already exists! Please select another!')
             work1 = True
-        elif name == 'EXIT':
-            await ctx.send('Closing...')
-            return
-        elif name == 'NONE':
-            await ctx.send('The name cannot be NONE.')
-        elif name == 'DONE':
-            await ctx.send('The name cannot be DONE.')
-        else:
-            cond_name = name
-            work1 = False
+
 
     await ctx.send('''Now, lets assign the value to the condition type. This can either be PHYSICAL or SPECIAL!''')
 
@@ -2815,15 +2920,16 @@ async def condition_creator(ctx):
         type = await client.wait_for("message", check=check)
         type = type.content
 
-        if type != 'PHYSICAL' or type != 'SPECIAL' or type != 'EXIT':
-            await ctx.send('The value is not PHYSICAL, SPECIAL, or EXIT! Please try again!')
-        else:
+        if type == 'PHYSICAL' or type == 'SPECIAL' or type == 'EXIT':
             if type == 'PHYSICAL' or type == 'SPECIAL':
                 cond_type = type
                 work2 = False
             elif type == 'EXIT':
                 await ctx.send('Closing...')
                 return
+        else:
+            await ctx.send('The value is not PHYSICAL, SPECIAL, or EXIT! Please try again!')
+
 
     await ctx.send('''The next step is to set the number of turns this effect last for. This must be in XdY form. This is where X is the number of dice and Y is the max range of dice.''')
 
@@ -2859,8 +2965,9 @@ async def condition_creator(ctx):
         if damage == 'EXIT':
             await ctx.send('Closing...')
             return
-        elif damage.find('d') == -1 or damage != 'NONE':
-            await ctx.send('The value is not in XdY form or NONE! Please try again!')
+        elif damage == 'NONE':
+            cond_damage = damage
+            work4 = False
         elif damage.find('d') != -1:
             x = damage.split('d')
 
@@ -2869,8 +2976,7 @@ async def condition_creator(ctx):
             elif int(x[0]) < 0 or int(x[1]) < 0 :
                 await ctx.send('The values for X or Y are negative! Please try again!')
         else:
-            cond_damage = damage
-            work4 = False
+            await ctx.send('The value is not in XdY form or NONE! Please try again!')
 
     await ctx.send('''The next thing to look at is the stat used to break from this condition. Please type the stat from the list of stats.''')
 
@@ -3019,7 +3125,7 @@ async def ability_creator(ctx):
         return amsg.author == ctx.author and amsg.channel == ctx.channel
 
 
-    await ctx.send('''Let's create an ability. To start, let's get the name. Make sure the name is not the same as an already existing name. If you want to quit at any point, type EXIT''')
+    await ctx.send('''Let's create an ability. To start, let's get the name. Make sure the name is not the same as an already existing name. If you want to quit at any point, type EXIT.''')
 
     pass1 = True
     while(pass1):
@@ -3033,8 +3139,9 @@ async def ability_creator(ctx):
         db = sqlite3.connect('main.sqlite')
         cursor = db.cursor()
 
+        vals = (ctx.guild.id, name)
         cursor.execute(
-            f'SELECT ability_name FROM abilities WHERE guild_id = {ctx.guild.id} AND ability_name = {name}')
+            f'SELECT ability_name FROM abilities WHERE guild_id = ? AND ability_name = ?', vals)
         result = cursor.fetchone()
 
         if result is not None:
@@ -3079,7 +3186,7 @@ async def ability_creator(ctx):
         else:
             await ctx.send('The value does not match either SELF or ENEMY! Please try again!')
 
-    await ctx.send(''''Now let's set the condition associated with the ability. The condition you type in must match a condition in your conditions list.''')
+    await ctx.send('''Now let's set the condition associated with the ability. The condition you type in must match a condition in your conditions list.''')
 
     pass4 = True
     while(pass4):
@@ -3093,8 +3200,9 @@ async def ability_creator(ctx):
             db = sqlite3.connect('main.sqlite')
             cursor = db.cursor()
 
+            vals = (ctx.guild.id, cond)
             cursor.execute(
-                f'SELECT condition_name FROM effectcond WHERE guild_id = {ctx.guild.id} AND condition_name = {cond}')
+                f'SELECT condition_name FROM effectcond WHERE guild_id = ? AND condition_name = ?', vals)
             res = cursor.fetchone()
 
             if res is not None:
@@ -3161,8 +3269,9 @@ async def spell_creator(ctx):
         db = sqlite3.connect('main.sqlite')
         cursor = db.cursor()
 
+        vals = (ctx.guild.id, name)
         cursor.execute(
-            f'SELECT spell_name FROM spells WHERE guild_id = {ctx.guild.id} AND spell_name = {name}')
+            f'SELECT spell_name FROM spells WHERE guild_id = ? AND spell_name = ?', vals)
         res = cursor.fetchone()
 
         if res is not None:
@@ -3196,8 +3305,10 @@ async def spell_creator(ctx):
         else:
             await ctx.send('This is not a valid string. Please type ATTACK or BUFF!')
 
+    mp = str(await get_mp_name(client, ctx.message))
+    ep = str(await get_ep_name(client, ctx.message))
 
-    await ctx.send('''From here, let's work on setting what stat the spell adds to better the cast. This value must be one from your stat list.''')
+    await ctx.send(f'''From here, let's work on setting what stat the spell adds to better the cast. This value must be either MP, for {mp} or EP for {ep}''')
 
     work4 = True
     while(work4):
@@ -3208,30 +3319,14 @@ async def spell_creator(ctx):
             await ctx.send('Closing...')
             return
 
-        cursor.execute(
-            f'SELECT stat1, stat2, stat3, stat4, stat5, stat6 FROM stats WHERE guild_id = {ctx.guild.id}')
-        stats = cursor.fetchone()
-
-        if stat == stats[0]:
-            spell_used_stat = 'stat1'
+        if stat == 'MP':
+            spell_used_stat = 'MP'
             work4 = False
-        elif stat == stats[1]:
-            spell_used_stat = 'stat2'
-            work4 = False
-        elif stat == stats[2]:
-            spell_used_stat = 'stat3'
-            work4 = False
-        elif stat == stats[3]:
-            spell_used_stat = 'stat4'
-            work4 = False
-        elif stat == stats[4]:
-            spell_used_stat = 'stat5'
-            work4 = False
-        elif stat == stats[5]:
-            spell_used_stat = 'stat6'
+        elif stat == 'EP':
+            spell_used_stat = 'EP'
             work4 = False
         else:
-            await ctx.send('The value is not a stat. Please try again!')
+            await ctx.send('The string is incorrect.')
 
     await ctx.send('''Next, let's set the type of spell. The value must be PHYSICAL or SPECIAL.''')
 
@@ -3247,7 +3342,7 @@ async def spell_creator(ctx):
             spell_type = type
             work3 = False
 
-    await ctx.send('''Now, let's work on the spell range. The range can either be SELF to foucs the ability on the caster or ENEMY to focus the other player.''')
+    await ctx.send('''Now, let's work on the spell range. The range can either be SELF to focus the ability on the caster or ENEMY to focus the other player.''')
 
     work5 = True
     while(work5):
@@ -3261,7 +3356,7 @@ async def spell_creator(ctx):
             spell_range = range
             work5 = False
 
-    await ctx.send('''Next, to set the spell you use to save. This value must be one from your stat list.''')
+    await ctx.send('''Next, to set the stat you use to save. This value must be one from your stat list.''')
 
     work6 = True
     while(work6):
@@ -3338,8 +3433,9 @@ async def spell_creator(ctx):
                 await ctx.send('Closing...')
                 return
 
+            vals = (ctx.guild.id, cond)
             cursor.execute(
-                f'SELECT condition_name FROM effectcond WHERE guild_id = {ctx.guild.id} AND condition_name = {cond}')
+                f'SELECT condition_name FROM effectcond WHERE (guild_id = ?) AND (condition_name = ?)', vals)
             val_cond = cursor.fetchone()
 
             if val_cond is not None:
@@ -3347,6 +3443,8 @@ async def spell_creator(ctx):
                 work7 = False
             else:
                 await ctx.send('''This value is not in the conditions database.''')
+
+    await ctx.send('''Lastly, lets set a description. This cannot be EXIT.''')
 
     work8 = True
     while(work8):
@@ -3404,8 +3502,9 @@ async def race_creator(ctx):
         db = sqlite3.connect('main.sqlite')
         cursor = db.cursor()
 
+        vals = (ctx.guild.id, name)
         cursor.execute(
-            f'SELECT race_name FROM races WHERE guild_id = {ctx.guild.id} AND race_name = {name}')
+            f'SELECT race_name FROM races WHERE guild_id = ? AND race_name = ?', vals)
         res1 = cursor.fetchone()
 
         if res1 is not None:
@@ -3469,7 +3568,7 @@ async def race_creator(ctx):
         elif can_be_int(ep):
             if int(ep) > 0:
                 race_ep = ep
-                work3 = False
+                work4 = False
             else:
                 await ctx.send('The value is not positive.')
         else:
@@ -3606,8 +3705,9 @@ async def race_creator(ctx):
             db = sqlite3.connect('main.sqlite')
             cursor = db.cursor()
 
+            vals = (ctx.guild.id, condition)
             cursor.execute(
-                f'SELECT condition_name FROM effectcond WHERE guild_id = {ctx.guild.id} AND condition_name = {condition}')
+                f'SELECT condition_name FROM effectcond WHERE guild_id = ? AND condition_name = ?')
             res = cursor.fetchone()
 
             if res is not None:
@@ -3640,8 +3740,9 @@ async def race_creator(ctx):
             db = sqlite3.connect('main.sqlite')
             cursor = db.cursor()
 
+            vals = (ctx.guild.id, condition)
             cursor.execute(
-                f'SELECT condition_name FROM effectcond WHERE guild_id = {ctx.guild.id} AND condition_name = {condition}')
+                f'SELECT condition_name FROM effectcond WHERE guild_id = ? AND condition_name = ?', vals)
             res = cursor.fetchone()
 
             if res is not None:
@@ -3673,8 +3774,9 @@ async def race_creator(ctx):
             db = sqlite3.connect('main.sqlite')
             cursor = db.cursor()
 
+            vals = (ctx.guild.id, condition)
             cursor.execute(
-                f'SELECT condition_name FROM effectcond WHERE guild_id = {ctx.guild.id} AND condition_name = {condition}')
+                f'SELECT condition_name FROM effectcond WHERE guild_id = ? AND condition_name = ?', vals)
             res = cursor.fetchone()
 
             if res is not None:
@@ -3706,8 +3808,9 @@ async def race_creator(ctx):
             db = sqlite3.connect('main.sqlite')
             cursor = db.cursor()
 
+            vals = (ctx.guild.id, ability)
             cursor.execute(
-                f'SELECT ability_name, ability_type, buff_range, buff_condition, ability_desc FROM abilities WHERE guild_id = {ctx.guild.id} AND ability_name = {ability}')
+                f'SELECT ability_name, ability_type, buff_range, buff_condition, ability_desc FROM abilities WHERE guild_id = ? AND ability_name = ?', vals)
             res = cursor.fetchone()
 
             if res is not None:
@@ -3731,7 +3834,7 @@ async def race_creator(ctx):
     cursor = db.cursor()
 
     sql = (
-        'INSERT INTO spells(guild_id, race_name, val_hp, val_mp, val_ep, stats_plus_min, condtion_immune, condtition_strength, condition_vulnerable, ability_list, race_description) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+        'INSERT INTO races(guild_id, race_name, val_hp, val_mp, val_ep, stats_plus_min, condtion_immune, condtition_strength, condition_vulnerable, ability_list, race_description) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
     val = (ctx.guild.id, race_name, race_hp, race_mp, race_ep, race_stat_plus_min, race_cond_immune_list, race_cond_resist_list, race_cond_vuln_list, race_abil_list, race_desc)
 
     cursor.execute(sql, val)
@@ -3776,8 +3879,9 @@ async def class_creator(ctx):
             db = sqlite3.connect('main.sqlite')
             cursor = db.cursor()
 
+            vals = (ctx.guild.id, name)
             cursor.execute(
-                f'SELECT class_name, add_sub_hp, add_sub_mp, add_sub_ep, stats_plus_min, stat_spell_save, unarmed_attack_damage, spell_array, class_ac_roll_stat, start_weapon, start_armor, start_items, class_desc FROM classes WHERE guild_id = {ctx.guild.id} AND class_name = {name}')
+                f'SELECT class_name FROM classes WHERE guild_id = ? AND class_name = ?', vals)
             res = cursor.fetchone()
 
             if res is not None:
@@ -3821,6 +3925,7 @@ async def class_creator(ctx):
 
     db = sqlite3.connect('main.sqlite')
     cursor = db.cursor()
+
     cursor.execute(
         f'SELECT stat1, stat2, stat3, stat4, stat5, stat6 FROM stats WHERE guild_id = {ctx.guild.id}')
     stats = cursor.fetchone()
@@ -3949,7 +4054,7 @@ async def class_creator(ctx):
     work12 = True
     while(work12):
         unarmed = await client.wait_for("message", check=check)
-        unarmed = unarmed.context
+        unarmed = unarmed.content
 
         if unarmed == 'EXIT':
             await ctx.send('Closing...')
@@ -3968,7 +4073,7 @@ async def class_creator(ctx):
         else:
             await ctx.send('The value is not in XdY form. Please try again!')
 
-    await ctx.send('''Now let's set what spells are associated with the class.''')
+    await ctx.send('''Now let's set what spells are associated with the class. Type in any spell names you have created and type DONE when DONE. Type NONE if you want no spells.''')
 
     work13 = True
     while (work13):
@@ -3994,8 +4099,9 @@ async def class_creator(ctx):
             db = sqlite3.connect('main.sqlite')
             cursor = db.cursor()
 
+            vals = (ctx.guild.id, spell)
             cursor.execute(
-                f'SELECT spell_name FROM spells WHERE guild_id = {ctx.guild.id} AND spell_name = {spell}')
+                f'SELECT spell_name FROM spells WHERE guild_id = ? AND spell_name = ?', vals)
             res = cursor.fetchone()
 
             if res is not None:
@@ -4015,8 +4121,9 @@ async def class_creator(ctx):
             db = sqlite3.connect('main.sqlite')
             cursor = db.cursor()
 
+            vals = (ctx.guild.id, weap_name)
             cursor.execute(
-                f'SELECT weapon_name FROM weapons WHERE guild_id = {ctx.guild.id} AND weapon_name = {weap_name}')
+                f'SELECT weapon_name FROM weapons WHERE guild_id = ? AND weapon_name = ?', vals)
             sweap = cursor.fetchone()
 
             if sweap is not None:
@@ -4039,8 +4146,9 @@ async def class_creator(ctx):
             db = sqlite3.connect('main.sqlite')
             cursor = db.cursor()
 
+            vals = (ctx.guild.id, armor_name)
             cursor.execute(
-                f'SELECT armor_name FROM armors WHERE guild_id = {ctx.guild.id} AND armor_name = {armor_name}')
+                f'SELECT armor_name FROM armors WHERE guild_id = ? AND armor_name = ?', vals)
             start_arm = cursor.fetchone()
 
             if start_arm is not None:
@@ -4063,8 +4171,9 @@ async def class_creator(ctx):
             db = sqlite3.connect('main.sqlite')
             cursor = db.cursor()
 
+            vals = (ctx.guild.id, potion_name)
             cursor.execute(
-                f'SELECT potion_name FROM potions WHERE guild_id = {ctx.guild.id} AND potion_name = {potion_name}')
+                f'SELECT potion_name FROM potions WHERE guild_id = ? AND potion_name = ?', vals)
             start_pot = cursor.fetchone()
 
             if start_pot is not None:
@@ -4072,6 +4181,8 @@ async def class_creator(ctx):
                 work16 = False
             else:
                 await ctx.send('This is not a potion name. Please try again!')
+
+    await ctx.send('Lastly, let\'s set a description. This value cannot be EXIT!')
 
     work17 = True
     while(work17):
@@ -4083,10 +4194,12 @@ async def class_creator(ctx):
             return
         else:
             class_desc = desc
+            await ctx.send(f'Description is now {desc}')
             work17 = False
 
-    sql = (
-        'INSERT INTO spells(guild_id, class_name, add_sub_hp, add_sub_mp, add_sub_ep, stats_plus_min, stat_spell_save, unarmed_attack_damage, spell_array, class_ac_roll_stat, start_weapon, start_armor, start_items, class_desc) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+    #                              1          2          3           4              5        6               7                     8                  9              10         11            12           13
+    sql = ('INSERT INTO classes(guild_id, class_name, add_sub_hp, add_sub_mp, add_sub_ep, stats_plus_min, stat_spell_save, unarmed_attack_damage, spell_array, start_weapon, start_armor, start_items, class_desc) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')
+    #          1            2               3                4                  5                   6                     7                 8                  9                10                     11                   12              13
     val = (ctx.guild.id, class_name, class_add_sub_hp, class_add_sub_mp, class_add_sub_ep, class_add_sub_stat_list, class_spell_save, class_unarmed_attack, class_spell_list, class_start_weapon, class_start_armor, class_start_potion, class_desc)
 
     cursor.execute(sql, val)
@@ -4094,7 +4207,7 @@ async def class_creator(ctx):
     cursor.close()
     db.close()
 
-@commands.command()
+@client.command()
 async def create_character(ctx):
     userid = ctx.message.author.id
     char_name = ''
@@ -4109,23 +4222,24 @@ async def create_character(ctx):
     db = sqlite3.connect('main.sqlite')
     cursor = db.cursor()
 
-    cursor.execute(f'SELECT COUNT(character_name) FROM characters WHERE guild_id = {ctx.guild.id} AND user_id = {userid}')
+    vals = (ctx.guild.id, userid)
+    cursor.execute(f'SELECT COUNT(character_name) FROM characters WHERE guild_id = ? AND user_id = ?', vals)
     res1 = cursor.fetchone()
 
     cursor.execute(f'SELECT num_char_allowed FROM rules WHERE guild_id = {ctx.guild.id}')
     res2 = cursor.fetchone()
 
-    if res1[0] >= res2[0]:
+    if res1[0] >= int(res2[0]):
         await ctx.send('You already have hit the max number of characters! Closing...')
         return
 
-    await ctx.send('''This command is a custom build character generator. This will act as a step-by-step guide to building a character. At any point, you can type EXIT to quit the command. Additionally, there is a two minute timeout for each prompt.
+    await ctx.send('''This command is a custom build character generator. This will act as a step-by-step guide to building a character. At any point, you can type EXIT to quit the command. Additionally, there is a five-minute timeout for each prompt.
     Let's start with a name for the character. The name cannot be EXIT, DONE, or NONE.''')
 
     work1 = True
     while(work1):
         try:
-            name = await client.wait_for("message", timeout=120, check=check)
+            name = await client.wait_for("message", timeout=300, check=check)
         except asyncio.TimeoutError:
             await ctx.send('You took too long to type a name! Closing...')
             return
@@ -4135,8 +4249,10 @@ async def create_character(ctx):
             await ctx.send('Closing...')
             return
         else:
+
+            vals = (ctx.guild.id, userid, name)
             cursor.execute(
-                f'SELECT character_name FROM characters WHERE guild_id = {ctx.guild.id} AND user_id = {userid} AND character_name = {name}')
+                f'SELECT character_name FROM characters WHERE guild_id = ? AND user_id = ? AND character_name = ?', vals)
             res = cursor.fetchone()
 
             if res is not None:
@@ -4160,8 +4276,9 @@ async def create_character(ctx):
             await ctx.send('Closing...')
             return
         else:
+            vals = (ctx.guild.id, race)
             cursor.execute(
-                f'SELECT race_name FROM races WHERE guild_id = {ctx.guild.id} AND race_name = {race}')
+                f'SELECT race_name FROM races WHERE guild_id = ? AND race_name = ?', vals)
             res = cursor.fetchone()
 
             if res is not None:
@@ -4185,8 +4302,9 @@ async def create_character(ctx):
             await ctx.send('Closing...')
             return
         else:
+            vals = (ctx.guild.id, class_val)
             cursor.execute(
-                f'SELECT class_name FROM classes WHERE guild_id = {ctx.guild.id} AND class_name = {class_val}')
+                f'SELECT class_name FROM classes WHERE guild_id = ? AND class_name = ?', vals)
             res = cursor.fetchone()
 
             if res is not None:
@@ -4199,12 +4317,14 @@ async def create_character(ctx):
         f'SELECT stat1, stat2, stat3, stat4, stat5, stat6, stat_dice, stat_reroll FROM stats WHERE guild_id = {ctx.guild.id}')
     stat_rules = cursor.fetchone()
 
+    vals = (ctx.guild.id, userid, char_class)
     cursor.execute(
-        f'SELECT stats_plus_min FROM characters WHERE guild_id = {ctx.guild.id} AND user_id = {userid} AND character_name = {char_class}')
+        f'SELECT stats_plus_min FROM characters WHERE guild_id = ? AND user_id = ? AND character_name = ?', vals)
     class_add_sub = cursor.fetchone()
 
+    vals = (ctx.guild.id, char_race)
     cursor.execute(
-        f'SELECT stats_plus_min FROM races WHERE guild_id = {ctx.guild.id} AND race_name = {char_race}')
+        f'SELECT stats_plus_min FROM races WHERE guild_id = ? AND race_name = ?', vals)
     race_add_sub = cursor.fetchone()
 
     statl = stat_rules[0]
@@ -4226,7 +4346,7 @@ async def create_character(ctx):
 
     if stat_rules[6] == 'POINTBUY':
         current_points = 10
-        await ctx.send(f'''The server uses a point buy system. You are given ten points to distribute amongst the six stats. To start, lets work on {statl} Remember, you will have {stat1_add} added to the value.''')
+        await ctx.send(f'''Te server uses a point buy system. You are given ten points to distribute amongst the six stats. To start, lets work on {statl} Remember, you will have {stat1_add} added to the value.''')
 
         work4 = True
         while(work4):
@@ -4593,13 +4713,15 @@ async def create_character(ctx):
         else:
             char_desc = desc
 
-    cursor.execute(f'SELECT COUNT(character_name) FROM characters WHERE guild_id = {ctx.guild.id} AND user_id = {user}')
+    vals = (ctx.guild.id, userid)
+    cursor.execute(f'SELECT COUNT(character_name) FROM characters WHERE guild_id = ? AND user_id = ?', vals)
     res1 = cursor.fetchone()
 
     num_char = int(res1[0])+1
 
+    vals = (ctx.guild.id, char_class)
     cursor.execute(
-        f'SELECT start_weapon, start_armor, start_items, FROM classes WHERE guild_id = {ctx.guild.id} AND class_name = {char_class}')
+        f'SELECT start_weapon, start_armor, start_items, FROM classes WHERE guild_id = ? AND class_name = ?', vals)
     items = cursor.fetchone()
 
     sql = (
@@ -4612,6 +4734,1933 @@ async def create_character(ctx):
     db.commit()
     cursor.close()
     db.close()
+
+
+@client.command()
+@commands.has_guild_permissions(administrator=True)
+async def create_item(ctx, item):
+    acceptable_strings = ['weapon', 'armor', 'potion']
+
+    def check(amsg):
+        return amsg.author == ctx.author and amsg.channel == ctx.channel
+
+    guildid = ctx.guild.id
+
+    if item in acceptable_strings:
+        if item == acceptable_strings[0]:
+            weap_name = ''
+            weap_type = ''
+            weap_cost = ''
+            weap_add_to_attack = ''
+            weap_desc = ''
+
+            await ctx.send(f'''This is the command to guide you through creating a weapon. At any point, you can type EXIT to close the command at any time. Let's start with the weapon name. This name can't be NONE, DONE, or EXIT. In addition, this name cannot be the same as other weapons.''')
+
+            test1 = True
+            while(test1):
+                weapname = await client.wait_for("message", check=check)
+                weapname = weapname.content
+
+                if weapname == 'EXIT':
+                    await ctx.send('Closing....')
+                    return
+                elif weapname == 'DONE':
+                    await ctx.send('This is not an appropriate weapon name. Please try again!')
+                    test1 = True
+                elif weapname == 'NONE':
+                    await ctx.send('This is not an appropriate weapon name. Please try again!')
+                    test1 = True
+                else:
+                    db = sqlite3.connect('main.sqlite')
+                    cursor = db.cursor()
+
+                    vals = (ctx.guild.id, weapname)
+                    cursor.execute(f'SELECT weapon_name FROM weapons WHERE guild_id = ? AND weapon_name = ?', vals)
+                    res = cursor.fetchone()
+
+                    if res is None:
+                        weap_name = weapname
+                        await ctx.send(f'The name will be {weapname} upon the completion of the command!')
+                        test1 = False
+                    else:
+                        await ctx.send(f'{weapname} already exits. Please try again!')
+                        test1 = True
+
+            await ctx.send('''Now, let's set the weapon type. This can either be MELEE or RANGE!''')
+
+            test2 = True
+            while(test2):
+                type = await client.wait_for("message", check=check)
+                type = type.content
+
+                if type == 'EXIT':
+                    await ctx.send('Closing...')
+                    return
+                elif type == 'MELEE' or type == 'RANGE':
+                    weap_type = type
+                    await ctx.send(f'The type will be {type}')
+                    test2 = False
+                else:
+                    await ctx.send(f'{type} does not match the required form. Please try again!')
+                    test2 = True
+
+            await ctx.send('''Now, let's set how much the weapon cost. This value must be an positive integer.''')
+
+            test3 = True
+            while(test3):
+                cost = await client.wait_for("message", check=check)
+                cost = cost.content
+
+                if cost == 'EXIT':
+                    await ctx.send('Closing...')
+                    return
+                elif can_be_int(cost):
+                    if int(cost) >= 0:
+                        weap_cost = cost
+                        await ctx.send(f'The cost will be {cost}')
+                        test3 = False
+                    else:
+                        await ctx.send('The value is not positive. Please try again!')
+                        test3 = True
+                else:
+                    await ctx.send('The value is not an integer. Please try again!')
+                    test3 = True
+
+            await ctx.send(f'''Next, let's set the value that will be added to the attack. This must also be a positive integer.''')
+
+            test4 = True
+            while(test4):
+                attack_add = await client.wait_for("message", check=check)
+                attack_add = attack_add.content
+
+                if attack_add == 'EXIT':
+                    await ctx.send('Closing...')
+                    return
+                elif can_be_int(attack_add):
+                    if int(attack_add) >= 0:
+                        weap_add_to_attack = attack_add
+                        await ctx.send(f'The value that will be added to attack is {attack_add}')
+                        test4 = False
+                    else:
+                        await ctx.send('The value is not positive. Please try again!')
+                        test4 = True
+                else:
+                    await ctx.send('The value is not an integer. Please try again!')
+                    test4 = True
+
+            await ctx.send(f'''Lastly, let's add a description for the item. This cannot be EXIT.''')
+
+            test5 = True
+            while(test5):
+                desc = await client.wait_for("message", check=check)
+                desc = desc.content
+
+                if desc == 'EXIT':
+                    await ctx.send('Closing...')
+                    return
+                else:
+                    weap_desc = desc
+                    test5 = False
+
+            db = sqlite3.connect('main.sqlite')
+            cursor = db.cursor()
+
+            sql = ('INSERT INTO weapons(guild_id, weapon_name, weapon_type, weapon_cost, weapon_add_attack, weapon_desc) VALUES(?,?,?,?,?,?)')
+            val = (guildid, weap_name, weap_type, weap_cost, weap_add_to_attack, weap_desc)
+
+            cursor.execute(sql, val)
+            db.commit()
+            cursor.close()
+            db.close()
+
+        elif item == acceptable_strings[1]:
+            armor_name = ''
+            armor_type = ''
+            armor_plus_ac_roll = ''
+            armor_cost = ''
+            armor_desc = ''
+
+            await ctx.send(f'''This is the command to guide you through creating an armor. At any point, you can type EXIT to close the command at any time. Let's start with the armor name. The armor cannot be called EXIT, NONE, or DONE. This name also cannot be the same as other armor names.''')
+
+            test1 = True
+            while(test1):
+                name = await client.wait_for("message", check=check)
+                name = name.content
+
+                if name == 'EXIT':
+                    await ctx.send('Closing...')
+                    return
+                elif name == 'NONE':
+                    await ctx.send(f'{name} is not an acceptable string. Please try again!')
+                    test1 = True
+                elif name == 'DONE':
+                    await ctx.send(f'{name} is not an acceptable string. Please try again!')
+                    test1 = True
+                else:
+                    db = sqlite3.connect('main.sqlite')
+                    cursor = db.cursor()
+
+                    vals = (ctx.guild.id, name)
+                    cursor.execute(
+                        f'SELECT armor_name FROM armors WHERE guild_id = ? AND armor_name = ?', vals)
+                    res = cursor.fetchone()
+
+                    if res is None:
+                        armor_name = name
+                        await ctx.send(f'The name will be set to {name}')
+                        test1 = False
+                    else:
+                        await ctx.send(f'{name} already exists. Please try again!')
+                        test1 = True
+
+            await ctx.send(f'''Next, let's set the armor type. This will be either LIGHT, MEDIUM, or HEAVY.''')
+
+            test2 = True
+            while(test2):
+                type = await client.wait_for("message", check=check)
+                type = type.content
+
+                if type == 'EXIT':
+                    await ctx.send('Closing...')
+                    return
+                elif type == 'LIGHT' or type == 'MEDIUM' or type == 'HEAVY':
+                    armor_type = type
+                    await ctx.send(f'The armor type will be {type}')
+                    test2 = False
+                else:
+                    await ctx.send(f'{type} is not a valid string. Please try again!')
+                    test2 = True
+
+            string_temp = ''
+
+            db = sqlite3.connect('main.sqlite')
+            cursor = db.cursor()
+
+            cursor.execute(
+                f'SELECT ac_comp_roll FROM rules WHERE guild_id = {ctx.guild.id}')
+            res = cursor.fetchone()
+
+            if res is not None:
+                if res[0] == 'AC':
+                    string_temp = 'AC'
+                elif res[0] == 'COMPROLL':
+                    string_temp = 'Dodge Roll'
+                else:
+                    await ctx.send('The value is not acceptable and you need to change the ac_comp_roll rule. Closing...')
+                    return
+            else:
+                await ctx.send('Call the setup command before using this one! Closing...')
+                return
+
+            await ctx.send(f'''Now, let's set the value that will be added to {string_temp}. This value must be a positive integer.''')
+
+            test3 = True
+            while(test3):
+                add_ac = await client.wait_for("message", check=check)
+                add_ac = add_ac.content
+
+                if add_ac == 'EXIT':
+                    await ctx.send('Closing...')
+                    return
+                elif can_be_int(add_ac):
+                    if int(add_ac) >= 0:
+                        armor_plus_ac_roll = add_ac
+                        await ctx.send(f'The value added to {string_temp} is {add_ac}')
+                        test3 = False
+                    else:
+                        await ctx.send(f'{add_ac} must be positive. Please try again!')
+                        test3 = True
+                else:
+                    await ctx.send(f'{add_ac} must be an integer. Please try again!')
+                    test3 = True
+
+            await ctx.send(f'''Next, let's set the cost of the item. This value must be a positive integer.''')
+
+            test4 = True
+            while(test4):
+                cost = await client.wait_for("message", check=check)
+                cost = cost.content
+
+                if cost == 'EXIT':
+                    await ctx.send('Closing...')
+                    return
+                elif can_be_int(cost):
+                    if int(cost) >= 0:
+                        armor_cost = cost
+                        await ctx.send(f'The value of cost will be {cost}')
+                        test4 = False
+                    else:
+                        await ctx.send(f'{cost} must be positive. Please try again!')
+                        test4 = True
+                else:
+                    await ctx.send(f'{cost} must be an integer. Please try again!')
+                    test4 = True
+
+            await ctx.send(f'''Lastly, let's set the description. This value cannot be EXIT.''')
+
+            test5 = True
+            while(test5):
+                desc = await client.wait_for("message", check=check)
+                desc = desc.content
+
+                if desc == 'EXIT':
+                    await ctx.send('Closing...')
+                    return
+                else:
+                    armor_desc = desc
+                    await ctx.send(f'The description is now {desc}.')
+                    test5 = False
+
+
+            db = sqlite3.connect('main.sqlite')
+            cursor = db.cursor()
+
+            sql = ('INSERT INTO armors(guild_id, armor_name, armor_type, armor_plus_ac_roll, armor_cost, armor_desc) VALUES(?,?,?,?,?,?)')
+            val = (guildid, armor_name, armor_type, armor_plus_ac_roll, armor_cost, armor_desc)
+
+            cursor.execute(sql, val)
+            db.commit()
+            cursor.close()
+            db.close()
+
+        elif item == acceptable_strings[2]:
+            potion_name = ''
+            potion_cond = ''
+            potion_cost = ''
+            potion_desc = ''
+
+            await ctx.send(f'''This is the command to guide you through creating a potion. At any point, you can type EXIT to close the command at any time. Let's start with the potion name. The potion cannot be called EXIT, NONE, or DONE. This name also cannot be the same as other potion names.''')
+
+            test1 = True
+            while(test1):
+                name = await client.wait_for("message", check=check)
+                name = name.content
+
+                if name == 'EXIT':
+                    await ctx.send('Closing...')
+                    return
+                elif name == 'NONE':
+                    await ctx.send(f'{name} is not acceptable. Please try again!')
+                    test1 = True
+                elif name == 'DONE':
+                    await ctx.send(f'{name} is not acceptable. Please try again!')
+                else:
+                    db = sqlite3.connect('main.sqlite')
+                    cursor = db.cursor()
+
+                    vals = (ctx.guild.id, name)
+                    cursor.execute(
+                        f'SELECT potion_name FROM potions WHERE guild_id = ? AND potion_name = ?', vals)
+                    res = cursor.fetchone()
+
+                    if res is None:
+                        potion_name = name
+                        await ctx.send(f'The name will be {name}')
+                        test1 = False
+                    else:
+                        await ctx.send(f'{name} already exists. Please try again!')
+                        test1 = True
+
+            await ctx.send(f'''Now let's set the condition related to the potion. This condition must be an already existing condition.''')
+
+            test2 = True
+            while(test2):
+                cond = await client.wait_for("message", check=check)
+                cond = cond.content
+
+                if cond == 'EXIT':
+                    await ctx.send('Closing...')
+                    return
+                else:
+                    vals = (ctx.guild.id, cond)
+                    cursor.execute(f'SELECT condition_name FROM effectcond WHERE guild_id = ? AND condition_name = ?', vals)
+                    res1 = cursor.fetchone()
+
+                    if res1 is not None:
+                        potion_cond = cond
+                        await ctx.send(f'The condition is now {cond}')
+                        test2 = False
+                    else:
+                        await ctx.send(f'{cond} does not exist. Please try again!')
+                        test2 = False
+
+            await ctx.send(f'''Next, let's set the cost of the potion. This must be a positive integer.''')
+
+            test3 = True
+            while(test3):
+                cost = await client.wait_for("message", check=check)
+                cost = cost.content
+
+                if cost == 'EXIT':
+                    await ctx.send('Closing...')
+                    return
+                elif can_be_int(cost):
+                    if int(cost) >= 0:
+                        potion_cost = cost
+                        await ctx.send(f'The cost will be {cost}')
+                        test3 = False
+                    else:
+                        await ctx.send(f'{cost} is not a positive number. Please try again!')
+                        test3 = True
+                else:
+                    await ctx.send(f'{cost} is not an integer. Please try again!')
+                    test3 = True
+
+            await ctx.send(f'''Lastly, let's set the description of the potion. This cannot be EXIT.''')
+
+            test4 = True
+            while(test4):
+                desc = await client.wait_for("message", check=check)
+                desc = desc.content
+
+                if desc == 'EXIT':
+                    await ctx.send('Closing...')
+                    return
+                else:
+                    potion_desc = desc
+                    await ctx.send(f'The description is now {desc}')
+                    test4 = False
+
+            db = sqlite3.connect('main.sqlite')
+            cursor = db.cursor()
+
+            sql = (
+                'INSERT INTO potions(guild_id, potion_name, potion_condition, potion_cost, potion_desc) VALUES(?,?,?,?,?)')
+            val = (guildid, potion_name, potion_cond, potion_cost, potion_desc)
+
+            cursor.execute(sql, val)
+            db.commit()
+            cursor.close()
+            db.close()
+        else:
+           await ctx.send(f'''The value of item is not accepted.
+           ```create_item [item]
+            where item is the item to be created. This can be either weapon, armor, or potion.```''')
+    else:
+        await ctx.send(f'''The value of item is not accepted.
+        ```create_item [item]
+        where item is the item to be created. This can be either weapon, armor, or potion.```''')
+
+@create_item.error
+async def create_item_error(ctx, error):
+    if isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send(f'''The value of item is not accepted.
+        ```create_item [item]
+        where item is the item to be created. This can be either weapon, armor, or potion.```''')
+
+########################################################################################################################
+#   GAME                                                                                                               #
+########################################################################################################################
+@client.command()
+async def duel(ctx, user: discord.member):
+    ###  IMPORTANT VARIABLES  ##########################################################################################
+    db = sqlite3.connect('main.sqlite')
+    cursor = db.cursor()
+
+    authorid = ctx.message.author.id
+    challengedid = user.id
+    currentchar = ''
+    authorcond = 'NONE'
+    authorcondturn = -1
+    usercond = 'NONE'
+    usercondturn = -1
+
+    ### GET RULES ######################################################################################################
+    vals = (ctx.guild.id)
+    cursor.execute(
+        f'SELECT exp_for_win, exp_for_loss, ac_comp_roll, comp_roll_add, forfeit_loss, stat_for_init_role FROM rules WHERE guild_id = ?')
+    rules = cursor.fetchone()
+    if rules is not None:
+        win_exp = int(rules[0])
+        loss_exp = int(rules[1])
+        ac_comp_roll = rules[2]
+        comp_roll_add = int(rules[3])
+        if rules[4] == 'YES':
+            forfiet = True
+        else:
+            forfiet = False
+        stat_for_init = rules[5]
+    else:
+        await ctx.send('GAME NOT SET UP! FAILING')
+        return
+
+
+    ### GET STATS ######################################################################################################
+    vals = (ctx.guild.id)
+    cursor.execute(
+        f'SELECT stat1, stat2, stat3, stat4, stat5, stat6 FROM stats WHERE guild_id = ?')
+    stats = cursor.fetchone()
+
+    if stats is not None:
+        stat1_name = stats[0]
+        stat2_name = stats[1]
+        stat3_name = stats[2]
+        stat4_name = stats[3]
+        stat5_name = stats[4]
+        stat6_name = stats[6]
+    else:
+        await ctx.send('GAME NOT SET UP! FAILING')
+        return
+
+    ### CHECK IF DUEL ACCEPTED  ########################################################################################
+    accepted = False
+
+    def authorCheck(amsg):
+        return amsg.author == ctx.author and amsg.channel == ctx.channel
+
+    def userCheck(amsg):
+        return amsg.author == user and amsg.channel == ctx.channel
+
+    await ctx.send(f'''{user.mention} you have been challenged to a duel by {ctx.message.author.mention}. Type YES to accept and type anything else to reject. You have one minute to accept or else it will count as a decline.''')
+
+    try:
+        agree = await client.wait_for("message", timeout=60, check=userCheck)
+    except asyncio.TimeoutError:
+        await ctx.send('They did not respond to the duel request.')
+        return
+    agree = agree.content
+
+    if agree == 'YES':
+        accepted = True
+    else:
+        await ctx.send('The duel was not accepted.')
+        return
+
+    ### GETTING CHARACTER INFORMATION ##################################################################################
+    if(not accepted):
+        await ctx.send('The duel was not accepted!')
+        return
+
+    ### AUTHOR INFORMATION #########################################################################################
+    await ctx.send(f'{ctx.message.author.mention} please select the character to use by character number. You have two minutes to decide.')
+
+    authorPick = True
+    while(authorPick):
+        try:
+            authorchar = await client.wait_for("message", timeout=120, check=authorCheck)
+        except asyncio.TimeoutError:
+            await ctx.send('You did not pick a character.')
+            return
+        authorchar = authorchar.content
+
+        vals = (ctx.guild.id, authorid, authorchar)
+        cursor.execute(
+            f'SELECT character_name, class_id, race_id, stat_list, weapon_id, armor_id, item_id_list, level, exp FROM characters WHERE guild_id = ? AND user_id = ? AND character_number = ?', vals)
+        authorcharacter = cursor.fetchone()
+
+        if authorcharacter is None:
+            await ctx.send(f'The author character does not exist for that number. Please try again!')
+            authorPick = True
+        else:
+            author_char_name = authorcharacter[0]
+            author_class_name = authorcharacter[1]
+            author_race_name = authorcharacter[2]
+
+            author_stat_list = authorcharacter[3]
+            author_stat_list = author_stat_list.split(',')
+
+            author_stat1 = int(author_stat_list[0])
+            author_stat2 = int(author_stat_list[1])
+            author_stat3 = int(author_stat_list[2])
+            author_stat4 = int(author_stat_list[3])
+            author_stat5 = int(author_stat_list[4])
+            author_stat6 = int(author_stat_list[5])
+
+            author_weap = authorcharacter[4]
+            author_armor = authorcharacter[5]
+            author_potion = authorcharacter[6]
+            author_level = authorcharacter[7]
+            author_exp = authorcharacter[8]
+
+            vals = (ctx.guild.id, author_class_name)
+            cursor.execute(
+                f'SELECT add_sub_hp, add_sub_mp, add_sub_ep, stat_spell_save, unarmed_attack_damage, spell_array FROM classes WHERE guild_id = ? AND class_name = ?', vals)
+            res1 = cursor.fetchone()
+
+            if res1 is not None:
+                add_hp = int(res1[0])
+                add_mp = int(res1[1])
+                add_ep = int(res1[2])
+                author_spell_save = res1[3]
+                author_unarmed_damage = res1[4]
+                author_spell_array = res1[5]
+
+            else:
+                await ctx.send('An error has occurred in getting author class. Failing!')
+                return
+
+            vals = (ctx.guild.id, author_race_name)
+            cursor.execute(
+                f'SELECT val_hp, val_mp, val_ep, condtion_immune, condtition_strength, condition_vulnerable, ability_list FROM races WHERE guild_id = ? AND race_name = ?', vals)
+            res2 = cursor.fetchone()
+
+            if res2 is not None:
+                set_hp = int(res2[0])
+                set_mp = int(res2[1])
+                set_ep = int(res2[2])
+                author_condition_immunity = res2[3]
+                author_condition_strength = res2[4]
+                author_condition_vulnerable = res2[5]
+                author_ability_list = res2[6]
+            else:
+                await ctx.send('ERROR! NO AUTHOR RACE DETECTED! FAILING!')
+                return
+
+            vals = (ctx.guild.id, author_weap)
+            cursor.execute(
+                f'SELECT weapon_add_attack FROM weapons WHERE guild_id = ? AND weapon_name = ?', vals)
+            res3 = cursor.fetchone()
+
+            if res3 is not None:
+                author_add_to_attack = int(res3[0])
+            else:
+                await ctx.send('AUTHOR WEAPON COULD NOT BE FOUND! FAILING!')
+                return
+
+            vals = (ctx.guild.id, author_armor)
+            cursor.execute(
+                f'SELECT armor_plus_ac_roll FROM armors WHERE guild_id = ? AND armor_name = ?', vals)
+            res4 = cursor.fetchone()
+
+            if res4 is not None:
+                author_add_to_ac_roll = int(res4[0])
+            else:
+                await ctx.send('AUTHOR ARMOR COULD NOT BE FOUND! FAILING!')
+                return
+
+            vals = (ctx.guild.id, author_potion)
+            cursor.execute(
+                f'SELECT potion_condition FROM potions WHERE guild_id = ? AND potion_name = ?', vals)
+            res5 = cursor.fetchone()
+
+            if res5 is not None:
+                author_potion_condition = res5
+            else:
+                await ctx.send("AUTHOR POTION NOT FOUND! FAILING!")
+                return
+
+            author_health = set_hp + add_hp + author_level
+            author_mana = set_mp + add_mp + author_level
+            author_energy = set_ep + add_ep + author_level
+            author_ac = 10 + author_add_to_ac_roll
+
+            authorPick = False
+
+    await ctx.send('''It is now the challenged player's turn. Same rules apply as before.''')
+
+    userPick = True
+    while (userPick):
+        try:
+            userchar = await client.wait_for("message", timeout=120, check=userCheck)
+        except asyncio.TimeoutError:
+            await ctx.send('You did not pick a character.')
+            return
+        userchar = userchar.content
+
+        vals = (ctx.guild.id, authorid, userchar)
+        cursor.execute(
+            f'SELECT character_name, class_id, race_id, stat_list, weapon_id, armor_id, item_id_list, level, exp FROM characters WHERE guild_id = ? AND user_id = ? AND character_number = ?', vals)
+        usercharacter = cursor.fetchone()
+
+        if usercharacter is None:
+            await ctx.send(f'The user character does not exist for that number. Please try again!')
+            userPick = True
+        else:
+            user_char_name = usercharacter[0]
+            user_class_name = usercharacter[1]
+            user_race_name = usercharacter[2]
+
+            user_stat_list = usercharacter[3]
+            user_stat_list = user_stat_list.split(',')
+
+            user_stat1 = int(user_stat_list[0])
+            user_stat2 = int(user_stat_list[1])
+            user_stat3 = int(user_stat_list[2])
+            user_stat4 = int(user_stat_list[3])
+            user_stat5 = int(user_stat_list[4])
+            user_stat6 = int(user_stat_list[5])
+
+            user_weap = usercharacter[4]
+            user_armor = usercharacter[5]
+            user_potion = usercharacter[6]
+            user_level = usercharacter[7]
+            user_exp = usercharacter[8]
+
+            vals = (ctx.guild.id, user_class_name)
+            cursor.execute(
+                f'SELECT add_sub_hp, add_sub_mp, add_sub_ep, stat_spell_save, unarmed_attack_damage, spell_array FROM classes WHERE guild_id = ? AND class_name = ?', vals)
+            res1 = cursor.fetchone()
+
+            if res1 is not None:
+                add_hp = res1[0]
+                add_mp = res1[1]
+                add_ep = res1[2]
+                user_spell_save = res1[3]
+                user_unarmed_damage = res1[4]
+                user_spell_array = res1[5]
+
+            else:
+                await ctx.send('An error has occurred in getting user class. Failing!')
+                return
+
+            vals = (ctx.guild.id, user_race_name)
+            cursor.execute(
+                f'SELECT val_hp, val_mp, val_ep, condtion_immune, condtition_strength, condition_vulnerable, ability_list FROM races WHERE guild_id = ? AND race_name = ?', vals)
+            res2 = cursor.fetchone()
+
+            if res2 is not None:
+                set_hp = res2[0]
+                set_mp = res2[1]
+                set_ep = res2[2]
+                user_condition_immunity = res2[3]
+                user_condition_strength = res2[4]
+                user_condition_vulnerable = res2[5]
+                user_ability_list = res2[6]
+            else:
+                await ctx.send('ERROR! NO USER RACE DETECTED! FAILING!')
+                return
+
+            vals = (ctx.guild.id, user_weap)
+            cursor.execute(
+                f'SELECT weapon_add_attack FROM weapons WHERE guild_id = ? AND weapon_name = ?', vals)
+            res3 = cursor.fetchone()
+
+            if res3 is not None:
+                user_add_to_attack = res3[0]
+            else:
+                await ctx.send('USER WEAPON COULD NOT BE FOUND! FAILING!')
+                return
+
+            vals = (ctx.guild.id, user_armor)
+            cursor.execute(
+                f'SELECT armor_plus_ac_roll FROM armors WHERE guild_id = ? AND armor_name = ?', vals)
+            res4 = cursor.fetchone()
+
+            if res4 is not None:
+                user_add_to_ac_roll = res4[0]
+            else:
+                await ctx.send('USER ARMOR COULD NOT BE FOUND! FAILING!')
+                return
+
+            vals = (ctx.guild.id, user_potion)
+            cursor.execute(
+                f'SELECT potion_condition FROM potions WHERE guild_id = ? AND potion_name = ?', vals)
+            res5 = cursor.fetchone()
+
+            if res5 is not None:
+                user_potion_condition = res5
+            else:
+                await ctx.send("USER POTION NOT FOUND! FAILING!")
+                return
+
+            user_health = set_hp + add_hp + user_level
+            user_mana = set_mp + add_mp + user_level
+            user_energy = set_ep + add_ep + user_level
+            user_ac = 10 + user_add_to_ac_roll
+
+            userPick = False
+
+    async def win_loss(name_winner, name_loser, win_exp, lose_exp, winner_exp, loser_exp, winner_level, loser_level):
+        await ctx.send(f'{name_winner} has won the match and earned {win_exp}. They have also earned {total_pot} {get_gold_name(client, ctx.message)}!')
+        await ctx.send(f'{name_loser} still gets {lose_exp}.')
+
+        winner_exp += win_exp
+        loser_exp += lose_exp
+
+        lvl_list = get_level_list_string(client, ctx.message)
+
+        x = lvl_list.split(',')
+
+        y = [int(i) for i in x]
+
+        if winner_exp < 0:
+            await ctx.send('The exp value must be greater than zero!')
+            return
+        elif winner_exp == 0:
+            winner_level = 1
+        elif winner_exp >= y[::-1]:
+            winner_level = len(y)
+        else:
+            winner_level = next(j for j, val in enumerate(y) if val > winner_exp)
+            winner_level += 1
+
+        if loser_exp < 0:
+            await ctx.send('The exp value must be greater than zero!')
+            return
+        elif loser_exp == 0:
+            loser_level = 1
+        elif loser_exp >= y[::-1]:
+            loser_level = len(y)
+        else:
+            loser_level = next(j for j, val in enumerate(y) if val > winner_exp)
+            loser_level += 1
+
+        return name_winner, name_loser, winner_exp, loser_exp, winner_level, loser_level
+
+    async def applycond(authorcondition, authorcontitionturns, usercondition, userconditionturns):
+        if authorcondition != 'NONE':
+            vals = (ctx.guild.id, authorcondition)
+            cursor.execute(
+                f'SELECT condition_damage, condition_gain_loss, condition_effect_stat, val_removed FROM effectcond WHERE guild_id = ? AND condition_name = ?', vals)
+            result = cursor.fetchone()
+
+            if result[0] != 'NONE':
+                authordamage = await roll(result[0])
+            else:
+                authordamage = 0
+
+            authorchange = result[2]
+            if authorchange == 'HP':
+                if result[1] == 'GAIN':
+                    author_gain_loss = 'GAIN'
+                    author_val = int(result[3])
+                elif result[1] == 'LOSS':
+                    author_gain_loss = 'LOSS'
+                    author_val = int(result[3])
+                else:
+                    author_gain_loss = 'NONE'
+                    author_val = 0
+            elif authorchange == 'MP':
+                if result[1] == 'GAIN':
+                    author_gain_loss = 'GAIN'
+                    author_val = int(result[3])
+                elif result[1] == 'LOSS':
+                    author_gain_loss = 'LOSS'
+                    author_val = int(result[3])
+                else:
+                    author_gain_loss = 'NONE'
+                    author_val = 0
+            elif authorchange == 'EP':
+                if result[1] == 'GAIN':
+                    author_gain_loss = 'GAIN'
+                    author_val = int(result[3])
+                elif result[1] == 'LOSS':
+                    author_gain_loss = 'LOSS'
+                    author_val = int(result[3])
+                else:
+                    author_gain_loss = 'NONE'
+                    author_val = 0
+            elif authorchange == 'stat1':
+                if result[1] == 'GAIN':
+                    author_gain_loss = 'GAIN'
+                    author_val = int(result[3])
+                elif result[1] == 'LOSS':
+                    author_gain_loss = 'LOSS'
+                    author_val = int(result[3])
+                else:
+                    author_gain_loss = 'NONE'
+                    author_val = 0
+            elif authorchange == 'stat2':
+                if result[1] == 'GAIN':
+                    author_gain_loss = 'GAIN'
+                    author_val = int(result[3])
+                elif result[1] == 'LOSS':
+                    author_gain_loss = 'LOSS'
+                    author_val = int(result[3])
+                else:
+                    author_gain_loss = 'NONE'
+                    author_val = 0
+            elif authorchange == 'stat3':
+                if result[1] == 'GAIN':
+                    author_gain_loss = 'GAIN'
+                    author_val = int(result[3])
+                elif result[1] == 'LOSS':
+                    author_gain_loss = 'LOSS'
+                    author_val = int(result[3])
+                else:
+                    author_gain_loss = 'NONE'
+                    author_val = 0
+            elif authorchange == 'stat4':
+                if result[1] == 'GAIN':
+                    author_gain_loss = 'GAIN'
+                    author_val = int(result[3])
+                elif result[1] == 'LOSS':
+                    author_gain_loss = 'LOSS'
+                    author_val = int(result[3])
+                else:
+                    author_gain_loss = 'NONE'
+                    author_val = 0
+            elif authorchange == 'stat5':
+                if result[1] == 'GAIN':
+                    author_gain_loss = 'GAIN'
+                    author_val = int(result[3])
+                elif result[1] == 'LOSS':
+                    author_gain_loss = 'LOSS'
+                    author_val = int(result[3])
+                else:
+                    author_gain_loss = 'NONE'
+                    author_val = 0
+            elif authorchange == 'stat6':
+                if result[1] == 'GAIN':
+                    author_gain_loss = 'GAIN'
+                    author_val = int(result[3])
+                elif result[1] == 'LOSS':
+                    author_gain_loss = 'LOSS'
+                    author_val = int(result[3])
+                else:
+                    author_gain_loss = 'NONE'
+                    author_val = 0
+            else:
+                if result[1] == 'GAIN':
+                    author_gain_loss = 'GAIN'
+                    author_val = int(result[3])
+                elif authorchange == 'LOSS':
+                    author_gain_loss = 'LOSS'
+                    author_val = int(result[3])
+                else:
+                    author_gain_loss = 'NONE'
+                    author_val = 0
+
+            authorcontitionturns -= 1
+
+            if authorcontitionturns == 0:
+                authorcond = 'NONE'
+        else:
+            authordamage = 0
+            authorchange = 'NONE'
+            author_gain_loss = 'NONE'
+            author_val = 0
+
+        if usercondition != 'NONE':
+            vals = (ctx.guild.id, usercondition)
+            cursor.execute(
+                f'SELECT condition_damage, condition_gain_loss, condition_effect_stat, val_removed FROM effectcond WHERE guild_id = ? AND condition_name = ?', vals)
+            result = cursor.fetchone()
+
+            if result[0] != 'NONE':
+                userdamage = await roll(result[0])
+            else:
+                userdamage = 0
+
+            userchange = result[2]
+            if userchange == 'HP':
+                if result[1] == 'GAIN':
+                    user_gain_loss = 'GAIN'
+                    user_val = int(result[3])
+                elif result[1] == 'LOSS':
+                    user_gain_loss = 'LOSS'
+                    user_val = int(result[3])
+                else:
+                    user_gain_loss = 'NONE'
+                    user_val = 0
+            elif userchange == 'MP':
+                if result[1] == 'GAIN':
+                    user_gain_loss = 'GAIN'
+                    user_val = int(result[3])
+                elif result[1] == 'LOSS':
+                    user_gain_loss = 'LOSS'
+                    user_val = int(result[3])
+                else:
+                    user_gain_loss = 'NONE'
+                    user_val = 0
+            elif userchange == 'EP':
+                if result[1] == 'GAIN':
+                    user_gain_loss = 'GAIN'
+                    user_val = int(result[3])
+                elif result[1] == 'LOSS':
+                    user_gain_loss = 'LOSS'
+                    user_val = int(result[3])
+                else:
+                    user_gain_loss = 'NONE'
+                    user_val = 0
+            elif userchange == 'stat1':
+                if result[1] == 'GAIN':
+                    user_gain_loss = 'GAIN'
+                    user_val = int(result[3])
+                elif result[1] == 'LOSS':
+                    user_gain_loss = 'LOSS'
+                    user_val = int(result[3])
+                else:
+                    user_gain_loss = 'NONE'
+                    user_val = 0
+            elif userchange == 'stat2':
+                if result[1] == 'GAIN':
+                    user_gain_loss = 'GAIN'
+                    user_val = int(result[3])
+                elif result[1] == 'LOSS':
+                    user_gain_loss = 'LOSS'
+                    user_val = int(result[3])
+                else:
+                    user_gain_loss = 'NONE'
+                    user_val = 0
+            elif userchange == 'stat3':
+                if result[1] == 'GAIN':
+                    user_gain_loss = 'GAIN'
+                    user_val = int(result[3])
+                elif result[1] == 'LOSS':
+                    user_gain_loss = 'LOSS'
+                    user_val = int(result[3])
+                else:
+                    user_gain_loss = 'NONE'
+                    user_val = 0
+            elif userchange == 'stat4':
+                if result[1] == 'GAIN':
+                    user_gain_loss = 'GAIN'
+                    user_val = int(result[3])
+                elif result[1] == 'LOSS':
+                    user_gain_loss = 'LOSS'
+                    user_val = int(result[3])
+                else:
+                    user_gain_loss = 'NONE'
+                    user_val = 0
+            elif userchange == 'stat5':
+                if result[1] == 'GAIN':
+                    user_gain_loss = 'GAIN'
+                    user_val = int(result[3])
+                elif result[1] == 'LOSS':
+                    user_gain_loss = 'LOSS'
+                    user_val = int(result[3])
+                else:
+                    user_gain_loss = 'NONE'
+                    author_val = 0
+            elif userchange == 'stat6':
+                if result[1] == 'GAIN':
+                    user_gain_loss = 'GAIN'
+                    user_val = int(result[3])
+                elif result[1] == 'LOSS':
+                    user_gain_loss = 'LOSS'
+                    user_val = int(result[3])
+                else:
+                    user_gain_loss = 'NONE'
+                    user_val = 0
+            else:
+                if result[1] == 'GAIN':
+                    user_gain_loss = 'GAIN'
+                    user_val = int(result[3])
+                elif result[1] == 'LOSS':
+                    user_gain_loss = 'LOSS'
+                    user_val = int(result[3])
+                else:
+                    user_gain_loss = 'NONE'
+                    user_val = 0
+
+            userconditionturns -= 1
+
+            if userconditionturns == 0:
+                usercond = 'NONE'
+        else:
+            userdamage = 0
+            userchange = 'NONE'
+            user_gain_loss = 'NONE'
+            user_val = 0
+
+        return authordamage, authorchange, author_gain_loss, author_val, userdamage, userchange, user_gain_loss, user_val
+
+
+
+    ### PLAYER BET #####################################################################################################
+    await ctx.send(f'Now, both players need to wager {get_gold_name(client, ctx.message)}. Players cannot wager more than 15% of their {get_gold_name(client, ctx.message)} rounded up. Let\'s start with {author_char_name}! You have two minutes or the game will end.')
+
+    vals = (ctx.guild.id, authorid)
+    cursor.execute(f'SELECT gold FROM player_gold WHERE guild_id = ? AND user_id = ?', vals)
+    authorgold = cursor.fetchone()
+
+    if authorgold is None:
+        await ctx.send('The author does not have gold set! FAILING!')
+        return
+    else:
+        author_gold = int(authorgold[0])
+
+    vals = (ctx.guild.id, challengedid)
+    cursor.execute(f'SELECT gold FROM player_gold WHERE guild_id = ? AND user_id = ?', vals)
+    usergold = cursor.fetchone()
+
+    if usergold is None:
+        await ctx.send('The author does not have gold set! FAILING!')
+        return
+    else:
+        user_gold = int(usergold[0])
+
+    authorcash = True
+    while(authorcash):
+        try:
+            authorcashola = await client.wait_for("message", timeout=120, check=authorCheck)
+        except asyncio.TimeoutError:
+            await ctx.send('You did not set the wager.')
+            return
+        authorcashola = authorcashola.content
+
+        if can_be_int(authorcashola):
+            if int(authorcashola) <= math.ceil(author_gold * 0.15):
+                author_bet = int(authorcashola)
+                await ctx.send(f'The challenger bet {author_bet}')
+                authorcash = False
+            else:
+                await ctx.send(f'The wager is not less than or equal to 15% of the challengers {get_gold_name(client, ctx.message)}')
+                authorcash = True
+        else:
+            await ctx.send(f'The wager is not an integer')
+            authorcash = True
+
+    await ctx.send(f'Now, for {user_char_name}. The same rules apply.')
+
+    usercash = True
+    while (usercash):
+        try:
+            usercashola = await client.wait_for("message", timeout=120, check=userCheck)
+        except asyncio.TimeoutError:
+            await ctx.send('You did not set the wager.')
+            return
+        usercashola = usercashola.content
+
+        if can_be_int(usercashola):
+            if int(usercashola) <= math.ceil(user_gold * 0.15):
+                user_bet = int(usercashola)
+                await ctx.send(f'The challenger bet {user_bet}')
+                usercash = False
+            else:
+                await ctx.send(
+                    f'The wager is not less than or equal to 15% of the challengers {get_gold_name(client, ctx.message)}')
+                usercash = True
+        else:
+            await ctx.send(f'The wager is not an integer')
+            usercash = True
+
+    total_pot = author_bet + user_bet
+
+    await ctx.send(f'Now rolling initiative.')
+
+    if stat_for_init == 'stat1':
+        author_init_add = author_stat1
+        user_init_add = user_stat1
+    elif stat_for_init == 'stat2':
+        author_init_add = author_stat2
+        user_init_add = user_stat2
+    elif stat_for_init == 'stat3':
+        author_init_add = author_stat3
+        user_init_add = user_stat3
+    elif stat_for_init == 'stat4':
+        author_init_add = author_stat4
+        user_init_add = user_stat4
+    elif stat_for_init == 'stat5':
+        author_init_add = author_stat5
+        user_init_add = user_stat5
+    elif stat_for_init == 'stat6':
+        author_init_add = author_stat6
+        user_init_add = user_stat6
+
+    author_roll_init = await roll('1d20')
+    user_roll_init = await roll('1d20')
+
+    author_roll_init += author_init_add
+    user_roll_init += user_init_add
+
+    await ctx.send(f'{author_char_name} rolled {author_roll_init} and {user_char_name} rolled {user_roll_init}.')
+
+    if author_roll_init >= user_roll_init:
+        await ctx.send(f'{author_char_name} goes first!')
+        currentchar = author_char_name
+    else:
+        await ctx.send(f'{user_char_name} goes first!')
+        currentchar = user_char_name
+
+    while(author_health > 0 or user_health > 0):
+        await ctx.send(f'{author_char_name} current {get_hp_name(client, ctx.message)}: {author_health}\n{author_char_name} current {get_mp_name(client, ctx.message)}: {author_mana}\n{author_char_name} current {get_ep_name(client, ctx.message)}\n\n{user_char_name} current {get_hp_name(client, ctx.message)}: {user_health}\n{user_char_name} current {get_mp_name(client, ctx.message)}: {user_mana}\n{user_char_name} current {get_ep_name(client, ctx.message)}: {user_energy}')
+
+        authordamage, authorchange, author_gain_loss, author_val, userdamage, userchange, user_gain_loss, user_val = await applycond(authorcond, authorcondturn, usercond, usercondturn)
+
+        author_health -= authordamage
+        if authorchange == 'HP':
+            if author_gain_loss == 'GAIN':
+                author_health += author_val
+            elif author_gain_loss == 'LOSS':
+                author_health -= author_val
+        elif authorchange == 'MP':
+            if author_gain_loss == 'GAIN':
+                author_mana += author_val
+            elif author_gain_loss == 'LOSS':
+                author_mana -= author_val
+        elif authorchange == 'EP':
+            if author_gain_loss == 'GAIN':
+                author_energy += author_val
+            elif author_gain_loss == 'LOSS':
+                author_energy -= author_val
+        elif authorchange == 'stat1':
+            if author_gain_loss == 'GAIN':
+                author_stat1 += author_val
+            elif author_gain_loss == 'LOSS':
+                author_stat1 -= author_val
+        elif authorchange == 'stat2':
+            if author_gain_loss == 'GAIN':
+                author_stat2 += author_val
+            elif author_gain_loss == 'LOSS':
+                author_stat2 -= author_val
+        elif authorchange == 'stat3':
+            if author_gain_loss == 'GAIN':
+                author_stat3 += author_val
+            elif author_gain_loss == 'LOSS':
+                author_stat3 -= author_val
+        elif authorchange == 'stat4':
+            if author_gain_loss == 'GAIN':
+                author_stat4 += author_val
+            elif author_gain_loss == 'LOSS':
+                author_stat4 -= author_val
+        elif authorchange == 'stat5':
+            if author_gain_loss == 'GAIN':
+                author_stat5 += author_val
+            elif author_gain_loss == 'LOSS':
+                author_stat5 -= author_val
+        elif authorchange == 'stat6':
+            if author_gain_loss == 'GAIN':
+                author_stat6 += author_val
+            elif author_gain_loss == 'LOSS':
+                author_stat6 -= author_val
+
+        user_health -= userdamage
+        if userchange == 'HP':
+            if user_gain_loss == 'GAIN':
+                user_health += user_val
+            elif author_gain_loss == 'LOSS':
+                user_health -= user_val
+        elif userchange == 'MP':
+            if user_gain_loss == 'GAIN':
+                user_mana += user_val
+            elif user_gain_loss == 'LOSS':
+                user_mana -= user_val
+        elif userchange == 'EP':
+            if user_gain_loss == 'GAIN':
+                user_energy += user_val
+            elif user_gain_loss == 'LOSS':
+                user_energy -= user_val
+        elif userchange == 'stat1':
+            if user_gain_loss == 'GAIN':
+                user_stat1 += user_val
+            elif user_gain_loss == 'LOSS':
+                user_stat1 -= user_val
+        elif userchange == 'stat2':
+            if user_gain_loss == 'GAIN':
+                user_stat2 += user_val
+            elif user_gain_loss == 'LOSS':
+                user_stat2 -= user_val
+        elif userchange == 'stat3':
+            if user_gain_loss == 'GAIN':
+                user_stat3 += user_val
+            elif user_gain_loss == 'LOSS':
+                user_stat3 -= user_val
+        elif userchange == 'stat4':
+            if user_gain_loss == 'GAIN':
+                user_stat4 += user_val
+            elif user_gain_loss == 'LOSS':
+                user_stat4 -= user_val
+        elif userchange == 'stat5':
+            if user_gain_loss == 'GAIN':
+                user_stat5 += user_val
+            elif user_gain_loss == 'LOSS':
+                user_stat5 -= user_val
+        elif userchange == 'stat6':
+            if user_gain_loss == 'GAIN':
+                user_stat6 += user_val
+            elif user_gain_loss == 'LOSS':
+                user_stat6 -= user_val
+
+
+        if currentchar == author_char_name:
+            await ctx.send(f'{author_char_name} turn! You have five minutes to decide what to do.')
+
+            test1 = True
+            while(test1):
+                try:
+                    authorturn = await client.wait_for("message", timeout=300, check=authorCheck)
+                except asyncio.TimeoutError:
+                    await ctx.send('You did not respond in time!')
+                    win_name, loser_name, winner_exp, loser_exp, winner_level, loser_level = win_loss(user_char_name, author_char_name, win_exp, loss_exp, user_exp, author_exp, user_level, author_level)
+
+                    if win_name == author_char_name:
+                        winner_id = authorid
+                    else:
+                        winner_id = user.id
+
+                    sql = ('UPDATE character SET level = ?, exp = ? WHERE guild_id = ? AND user_id = ? AND character_name = ?')
+                    val = (winner_level, winner_exp, ctx.guild.id, winner_id, win_name)
+
+                    cursor.execute(sql, val)
+
+                    if loser_name == author_char_name:
+                        loser_id = authorid
+                    else:
+                        loser_id = user.id
+
+                    sql = (
+                        'UPDATE character SET level = ?, exp = ? WHERE guild_id = ? AND user_id = ? AND character_name = ?')
+                    val = (loser_level, loser_exp, ctx.guild.id, loser_id, loser_name)
+
+                    cursor.execute(sql, val)
+
+                    sql = ('UPDATE player_gold SET gold = ? WHERE guild_id = ? AND user_id = ?')
+                    val = (total_pot, ctx.guild.id, winner_id)
+
+                    cursor.execute(sql, val)
+                    db.commit()
+                    cursor.close()
+                    db.close()
+
+                    return
+                authorturn = authorturn.content
+
+                if authorturn == 'ATTACK':
+
+                    attack_val = await roll('1d20') + author_add_to_attack
+                    attack_dmg = await roll(author_unarmed_damage) + author_add_to_attack
+
+                    if ac_comp_roll == 'AC':
+                        if attack_val >= user_ac:
+                            user_health -= attack_dmg
+                            await ctx.send(f'{user_char_name} took {attack_dmg}')
+                        else:
+                            await ctx.send(f'{author_char_name} missed!')
+                    elif ac_comp_roll == 'COMPROLL':
+                        user_dodge = await roll('1d20') + user_add_to_ac_roll
+
+                        if attack_val >= user_dodge:
+                            user_health -= attack_dmg
+                            await ctx.send(f'{user_char_name} took {attack_dmg}')
+                        else:
+                            await ctx.send(f'{author_char_name} missed!')
+
+                    test1 = False
+
+                elif authorturn == 'SPELL':
+
+                    test2 = True
+                    while(test2):
+                        await ctx.send('What spell would you like to cast?')
+                        try:
+                            authorspell = await client.wait_for("message", timeout=300, check=authorCheck)
+                        except asyncio.TimeoutError:
+                            await ctx.send('You did not respond in time!')
+                            win_name, loser_name, winner_exp, loser_exp, winner_level, loser_level = win_loss(
+                                user_char_name, author_char_name, win_exp, loss_exp, user_exp, author_exp, user_level,
+                                author_level)
+
+                            if win_name == author_char_name:
+                                winner_id = authorid
+                            else:
+                                winner_id = user.id
+
+                            sql = (
+                                'UPDATE character SET level = ?, exp = ? WHERE guild_id = ? AND user_id = ? AND character_name = ?')
+                            val = (winner_level, winner_exp, ctx.guild.id, winner_id, win_name)
+
+                            cursor.execute(sql, val)
+
+                            if loser_name == author_char_name:
+                                loser_id = authorid
+                            else:
+                                loser_id = user.id
+
+                            sql = (
+                                'UPDATE character SET level = ?, exp = ? WHERE guild_id = ? AND user_id = ? AND character_name = ?')
+                            val = (loser_level, loser_exp, ctx.guild.id, loser_id, loser_name)
+
+                            cursor.execute(sql, val)
+
+                            sql = ('UPDATE player_gold SET gold = ? WHERE guild_id = ? AND user_id = ?')
+                            val = (total_pot, ctx.guild.id, winner_id)
+
+                            cursor.execute(sql, val)
+                            db.commit()
+                            cursor.close()
+                            db.close()
+
+                            return
+                        authorspell = authorspell.content
+
+                        if authorspell in author_spell_array:
+                            vals = (ctx.guild.id, authorspell)
+                            cursor.execute(
+                                f'SELECT attack_buff, spell_uses, spell_type, spell_range, spell_damage, spell_save, buff_debuff_condition FROM spells WHERE guild_id = ? AND spell_name = ?', vals)
+                            res = cursor.fetchone()
+
+                            if res is None:
+                                await ctx.send('That spell does not exist! Please try again!')
+                            else:
+                                attack_buff = res[0]
+                                spell_uses = res[1]
+                                spell_type = res[2]
+                                spell_range = res[3]
+                                spell_damage = res[4]
+                                spell_save = res[5]
+                                buff_debuff_cond = res[6]
+
+                                if attack_buff == 'ATTACK':
+                                    if spell_range == 'ENEMY':
+                                        if spell_save == 'stat1':
+                                            add_to_save = user_stat1
+                                        elif spell_save == 'stat2':
+                                            add_to_save = user_stat2
+                                        elif spell_save == 'stat3':
+                                            add_to_save = user_stat3
+                                        elif spell_save == 'stat4':
+                                            add_to_save = user_stat4
+                                        elif spell_save == 'stat5':
+                                            add_to_save = user_stat5
+                                        elif spell_save == 'stat6':
+                                            add_to_save = user_stat6
+                                        elif spell_save == 'NONE':
+                                            add_to_save = 0
+
+                                        user_spell_roll = await roll('1d20') + add_to_save
+
+                                        if user_spell_roll < author_spell_save:
+                                            spell_dmg = await roll(spell_damage)
+
+                                            user_health -= spell_dmg
+                                            await ctx.send(f'{user_char_name} took {spell_dmg}')
+                                            if spell_uses == 'MP':
+                                                author_mana -= 5
+                                            elif spell_uses == 'EP':
+                                                author_energy -= 5
+                                        else:
+                                            await ctx.send(f'{user_char_name} felt no effect!')
+                                            if spell_uses == 'MP':
+                                                author_mana -= 5
+                                            elif spell_uses == 'EP':
+                                                author_energy -= 5
+                                    elif spell_range == 'SELF':
+                                        spell_dmg = await roll(spell_damage)
+
+                                        author_health -= spell_dmg
+                                        await ctx.send(f'{author_char_name} took {spell_dmg}')
+                                        if spell_uses == 'MP':
+                                            author_mana -= 5
+                                        elif spell_uses == 'EP':
+                                            author_energy -= 5
+
+                                    test2 = False
+
+                                elif attack_buff == 'BUFF':
+                                    if spell_range == 'ENEMY':
+                                        if spell_save == 'stat1':
+                                            add_to_save = user_stat1
+                                        elif spell_save == 'stat2':
+                                            add_to_save = user_stat2
+                                        elif spell_save == 'stat3':
+                                            add_to_save = user_stat3
+                                        elif spell_save == 'stat4':
+                                            add_to_save = user_stat4
+                                        elif spell_save == 'stat5':
+                                            add_to_save = user_stat5
+                                        elif spell_save == 'stat6':
+                                            add_to_save = user_stat6
+                                        elif spell_save == 'NONE':
+                                            add_to_save = 0
+
+                                        user_spell_roll = await roll('1d20') + add_to_save
+
+                                        if user_spell_roll < author_spell_save:
+                                            usercond = buff_debuff_cond
+
+                                            vals = (ctx.guild.id, buff_debuff_cond)
+                                            cursor.execute(
+                                                f'SELECT condition_turns, cause_lose_turn FROM effectcond WHERE guild_id = ? AND condition_name = ?', vals)
+                                            result = cursor.fetchone()
+
+                                            if result is None:
+                                                await ctx.send('There is no condition! Please try again!')
+                                                usercond = 'NONE'
+                                            else:
+                                                usercondturn = await roll(result[0])
+
+                                                await ctx.send(f'{user_char_name} effected with condition {usercond} for {usercondturn}')
+                                                if spell_uses == 'MP':
+                                                    author_mana -= 5
+                                                elif spell_uses == 'EP':
+                                                    author_energy -= 5
+                                        else:
+                                            await ctx.send(f'{user_char_name} saved from the spell!')
+                                            if spell_uses == 'MP':
+                                                author_mana -= 5
+                                            elif spell_uses == 'EP':
+                                                author_energy -= 5
+
+                                    elif spell_range == 'SELF':
+                                        authorcond = buff_debuff_cond
+
+                                        vals = (ctx.guild.id, buff_debuff_cond)
+                                        cursor.execute(
+                                            f'SELECT condition_turns, cause_lose_turn FROM effectcond WHERE guild_id = ? AND condition_name = ?', vals)
+                                        result = cursor.fetchone()
+
+                                        if result is None:
+                                            await ctx.send('There is no condition! Please try again!')
+                                            authorcond = 'NONE'
+                                        else:
+                                            authorcondturn = await roll(result[0])
+
+                                            await ctx.send(f'{author_char_name} effected with condition {authorcond} for {authorcondturn}')
+                                            if spell_uses == 'MP':
+                                                author_mana -= 5
+                                            elif spell_uses == 'EP':
+                                                author_energy -= 5
+
+                                    test2 = False
+                                test1 = False
+                elif authorturn == 'ITEM':
+                    await ctx.send(f'{author_char_name} drank the potion {author_potion}')
+
+                    authorcond = author_potion_condition
+
+                    vals = (ctx.guild.id, author_potion_condition)
+                    cursor.execute(
+                        f'SELECT condition_turns, cause_lose_turn FROM effectcond WHERE guild_id =  AND condition_name = ?', vals)
+                    result = cursor.fetchone()
+
+                    if result is None:
+                        await ctx.send('There is no condition! Please try again!')
+                        authorcond = 'NONE'
+                    else:
+                        authorcondturn = await roll(result[0])
+
+                    test1 = False
+
+                elif authorturn == 'FORFEIT':
+                    if(forfiet):
+                        await ctx.send(f'{author_char_name} has forfeited!')
+                        win_name, loser_name, winner_exp, loser_exp, winner_level, loser_level = win_loss(
+                            user_char_name, author_char_name, win_exp, loss_exp, user_exp, author_exp, user_level,
+                            author_level)
+
+                        if win_name == author_char_name:
+                            winner_id = authorid
+                        else:
+                            winner_id = user.id
+
+                        sql = (
+                            'UPDATE character SET level = ?, exp = ? WHERE guild_id = ? AND user_id = ? AND character_name = ?')
+                        val = (winner_level, winner_exp, ctx.guild.id, winner_id, win_name)
+
+                        cursor.execute(sql, val)
+
+                        if loser_name == author_char_name:
+                            loser_id = authorid
+                        else:
+                            loser_id = user.id
+
+                        sql = (
+                            'UPDATE character SET level = ?, exp = ? WHERE guild_id = ? AND user_id = ? AND character_name = ?')
+                        val = (loser_level, loser_exp, ctx.guild.id, loser_id, loser_name)
+
+                        cursor.execute(sql, val)
+
+                        sql = ('UPDATE player_gold SET gold = ? WHERE guild_id = ? AND user_id = ?')
+                        val = (total_pot, ctx.guild.id, winner_id)
+
+                        cursor.execute(sql, val)
+                        db.commit()
+                        cursor.close()
+                        db.close()
+                        test1 = False
+                    else:
+                        await ctx.send('You cannot forfeit from battles')
+                else:
+                    await ctx.send('The value inserted was incorrect. Please try again!')
+
+        currentchar = user_char_name
+
+
+        if currentchar == user_char_name:
+            # apply_conditions
+            await ctx.send(f'{user_char_name} turn! You have five minutes to decide what to do.')
+
+            test1 = True
+            while (test1):
+                try:
+                    userturn = await client.wait_for("message", timeout=300, check=userCheck)
+                except asyncio.TimeoutError:
+                    await ctx.send('You did not respond in time!')
+                    win_name, loser_name, winner_exp, loser_exp, winner_level, loser_level = win_loss(author_char_name,
+                                                                                                      user_char_name,
+                                                                                                      win_exp, loss_exp,
+                                                                                                      author_exp,
+                                                                                                      user_exp,
+                                                                                                      author_level,
+                                                                                                      user_level)
+
+                    if win_name == author_char_name:
+                        winner_id = authorid
+                    else:
+                        winner_id = user.id
+
+                    sql = (
+                        'UPDATE character SET level = ?, exp = ? WHERE guild_id = ? AND user_id = ? AND character_name = ?')
+                    val = (winner_level, winner_exp, ctx.guild.id, winner_id, win_name)
+
+                    cursor.execute(sql, val)
+
+                    if loser_name == author_char_name:
+                        loser_id = authorid
+                    else:
+                        loser_id = user.id
+
+                    sql = (
+                        'UPDATE character SET level = ?, exp = ? WHERE guild_id = ? AND user_id = ? AND character_name = ?')
+                    val = (loser_level, loser_exp, ctx.guild.id, loser_id, loser_name)
+
+                    cursor.execute(sql, val)
+
+                    sql = ('UPDATE player_gold SET gold = ? WHERE guild_id = ? AND user_id = ?')
+                    val = (total_pot, ctx.guild.id, winner_id)
+
+                    cursor.execute(sql, val)
+                    db.commit()
+                    cursor.close()
+                    db.close()
+                    return
+                userturn = userturn.content
+
+                if userturn == 'ATTACK':
+
+                    attack_val = await roll('1d20') + user_add_to_attack
+                    attack_dmg = await roll(user_unarmed_damage) + user_add_to_attack
+
+                    if ac_comp_roll == 'AC':
+                        if attack_val >= author_ac:
+                            author_health -= attack_dmg
+                            await ctx.send(f'{author_char_name} took {attack_dmg}')
+                        else:
+                            await ctx.send(f'{user_char_name} missed!')
+                    elif ac_comp_roll == 'COMPROLL':
+                        author_dodge = await roll('1d20') + author_add_to_ac_roll
+
+                        if attack_val >= author_dodge:
+                            author_health -= attack_dmg
+                            await ctx.send(f'{author_char_name} took {attack_dmg}')
+                        else:
+                            await ctx.send(f'{user_char_name} missed!')
+
+                    test1 = False
+
+                elif userturn == 'SPELL':
+
+                    test2 = True
+                    while (test2):
+                        await ctx.send('What spell would you like to cast?')
+                        try:
+                            userspell = await client.wait_for("message", timeout=300, check=userCheck)
+                        except asyncio.TimeoutError:
+                            await ctx.send('You did not respond in time!')
+                            win_name, loser_name, winner_exp, loser_exp, winner_level, loser_level = win_loss(
+                                author_char_name,
+                                user_char_name,
+                                win_exp, loss_exp,
+                                author_exp,
+                                user_exp,
+                                author_level,
+                                user_level)
+
+                            if win_name == author_char_name:
+                                winner_id = authorid
+                            else:
+                                winner_id = user.id
+
+                            sql = (
+                                'UPDATE character SET level = ?, exp = ? WHERE guild_id = ? AND user_id = ? AND character_name = ?')
+                            val = (winner_level, winner_exp, ctx.guild.id, winner_id, win_name)
+
+                            cursor.execute(sql, val)
+
+                            if loser_name == author_char_name:
+                                loser_id = authorid
+                            else:
+                                loser_id = user.id
+
+                            sql = (
+                                'UPDATE character SET level = ?, exp = ? WHERE guild_id = ? AND user_id = ? AND character_name = ?')
+                            val = (loser_level, loser_exp, ctx.guild.id, loser_id, loser_name)
+
+                            cursor.execute(sql, val)
+
+                            sql = ('UPDATE player_gold SET gold = ? WHERE guild_id = ? AND user_id = ?')
+                            val = (total_pot, ctx.guild.id, winner_id)
+
+                            cursor.execute(sql, val)
+                            db.commit()
+                            cursor.close()
+                            db.close()
+                            return
+                        userspell = userspell.content
+
+                        if userspell in user_spell_array:
+                            vals = (ctx.guild.id, userspell)
+                            cursor.execute(
+                                f'SELECT attack_buff, spell_uses, spell_type, spell_range, spell_damage, spell_save, buff_debuff_condition FROM spells WHERE guild_id = ? AND spell_name = ?', vals)
+                            res = cursor.fetchone()
+
+                            if res is None:
+                                await ctx.send('That spell does not exist! Please try again!')
+                            else:
+                                attack_buff = res[0]
+                                spell_uses = res[1]
+                                spell_type = res[2]
+                                spell_range = res[3]
+                                spell_damage = res[4]
+                                spell_save = res[5]
+                                buff_debuff_cond = res[6]
+
+                                if attack_buff == 'ATTACK':
+                                    if spell_range == 'ENEMY':
+                                        if spell_save == 'stat1':
+                                            add_to_save = author_stat1
+                                        elif spell_save == 'stat2':
+                                            add_to_save = author_stat2
+                                        elif spell_save == 'stat3':
+                                            add_to_save = author_stat3
+                                        elif spell_save == 'stat4':
+                                            add_to_save = author_stat4
+                                        elif spell_save == 'stat5':
+                                            add_to_save = author_stat5
+                                        elif spell_save == 'stat6':
+                                            add_to_save = author_stat6
+                                        elif spell_save == 'NONE':
+                                            add_to_save = 0
+
+                                        author_spell_roll = await roll('1d20') + add_to_save
+
+                                        if author_spell_roll < user_spell_save:
+                                            spell_dmg = await roll(spell_damage)
+
+                                            author_health -= spell_dmg
+                                            await ctx.send(f'{author_char_name} took {spell_dmg}')
+                                            if spell_uses == 'MP':
+                                                user_mana -= 5
+                                            elif spell_uses == 'EP':
+                                                user_energy -= 5
+                                        else:
+                                            await ctx.send(f'{author_char_name} felt no effect!')
+                                            if spell_uses == 'MP':
+                                                user_mana -= 5
+                                            elif spell_uses == 'EP':
+                                                user_energy -= 5
+                                    elif spell_range == 'SELF':
+                                        spell_dmg = await roll(spell_damage)
+
+                                        user_health -= spell_dmg
+                                        await ctx.send(f'{user_char_name} took {spell_dmg}')
+                                        if spell_uses == 'MP':
+                                            user_mana -= 5
+                                        elif spell_uses == 'EP':
+                                            user_energy -= 5
+
+                                    test2 = False
+
+                                elif attack_buff == 'BUFF':
+                                    if spell_range == 'ENEMY':
+                                        if spell_save == 'stat1':
+                                            add_to_save = author_stat1
+                                        elif spell_save == 'stat2':
+                                            add_to_save = author_stat2
+                                        elif spell_save == 'stat3':
+                                            add_to_save = author_stat3
+                                        elif spell_save == 'stat4':
+                                            add_to_save = author_stat4
+                                        elif spell_save == 'stat5':
+                                            add_to_save = author_stat5
+                                        elif spell_save == 'stat6':
+                                            add_to_save = author_stat6
+                                        elif spell_save == 'NONE':
+                                            add_to_save = 0
+
+                                        author_spell_roll = await roll('1d20') + add_to_save
+
+                                        if author_spell_roll < user_spell_save:
+                                            authorcond = buff_debuff_cond
+
+                                            vals = (ctx.guild.id, buff_debuff_cond)
+                                            cursor.execute(
+                                                f'SELECT condition_turns, cause_lose_turn FROM effectcond WHERE guild_id = ? AND condition_name = ?', vals)
+                                            result = cursor.fetchone()
+
+                                            if result is None:
+                                                await ctx.send('There is no condition! Please try again!')
+                                                authorcond = 'NONE'
+                                            else:
+                                                authorcondturn = await roll(result[0])
+
+                                                await ctx.send(
+                                                    f'{author_char_name} effected with condition {authorcond} for {authorcondturn}')
+                                                if spell_uses == 'MP':
+                                                    user_mana -= 5
+                                                elif spell_uses == 'EP':
+                                                    user_energy -= 5
+                                        else:
+                                            await ctx.send(f'{author_char_name} saved from the spell!')
+                                            if spell_uses == 'MP':
+                                                user_mana -= 5
+                                            elif spell_uses == 'EP':
+                                                user_energy -= 5
+
+                                    elif spell_range == 'SELF':
+                                        usercond = buff_debuff_cond
+
+                                        vals = (ctx.guild.id, buff_debuff_cond)
+                                        cursor.execute(
+                                            f'SELECT condition_turns, cause_lose_turn FROM effectcond WHERE guild_id = ? AND condition_name = ?', vals)
+                                        result = cursor.fetchone()
+
+                                        if result is None:
+                                            await ctx.send('There is no condition! Please try again!')
+                                            usercond = 'NONE'
+                                        else:
+                                            usercondturn = await roll(result[0])
+
+                                            await ctx.send(
+                                                f'{user_char_name} effected with condition {usercond} for {usercondturn}')
+                                            if spell_uses == 'MP':
+                                                user_mana -= 5
+                                            elif spell_uses == 'EP':
+                                                user_energy -= 5
+
+                                    test2 = False
+                                test1 = False
+                elif userturn == 'ITEM':
+                    await ctx.send(f'{user_char_name} drank the potion {user_potion}')
+
+                    usercond = user_potion_condition
+
+                    vals = (ctx.guild.id, user_potion_condition)
+                    cursor.execute(
+                        f'SELECT condition_turns, cause_lose_turn FROM effectcond WHERE guild_id = ? AND condition_name = ?', vals)
+                    result = cursor.fetchone()
+
+                    if result is None:
+                        await ctx.send('There is no condition! Please try again!')
+                        usercond = 'NONE'
+                    else:
+                        usercondturn = await roll(result[0])
+
+                    test1 = False
+
+                elif userturn == 'FORFEIT':
+                    if (forfiet):
+                        await ctx.send(f'{user_char_name} has forfeited!')
+                        win_name, loser_name, winner_exp, loser_exp, winner_level, loser_level = win_loss(
+                            author_char_name,
+                            user_char_name,
+                            win_exp, loss_exp,
+                            author_exp,
+                            user_exp,
+                            author_level,
+                            user_level)
+
+                        if win_name == author_char_name:
+                            winner_id = authorid
+                        else:
+                            winner_id = user.id
+
+                        sql = (
+                            'UPDATE character SET level = ?, exp = ? WHERE guild_id = ? AND user_id = ? AND character_name = ?')
+                        val = (winner_level, winner_exp, ctx.guild.id, winner_id, win_name)
+
+                        cursor.execute(sql, val)
+
+                        if loser_name == author_char_name:
+                            loser_id = authorid
+                        else:
+                            loser_id = user.id
+
+                        sql = (
+                            'UPDATE character SET level = ?, exp = ? WHERE guild_id = ? AND user_id = ? AND character_name = ?')
+                        val = (loser_level, loser_exp, ctx.guild.id, loser_id, loser_name)
+
+                        cursor.execute(sql, val)
+
+                        sql = ('UPDATE player_gold SET gold = ? WHERE guild_id = ? AND user_id = ?')
+                        val = (total_pot, ctx.guild.id, winner_id)
+
+                        cursor.execute(sql, val)
+                        db.commit()
+                        cursor.close()
+                        db.close()
+                        test1 = False
+                    else:
+                        await ctx.send('You cannot forfeit from battles')
+                else:
+                    await ctx.send('The value inserted was incorrect. Please try again!')
+
+        currentchar = author_char_name
+
+    if author_health <= 0:
+        win_name, loser_name, winner_exp, loser_exp, winner_level, loser_level = win_loss(user_char_name,
+                                                                                          author_char_name,
+                                                                                          win_exp, loss_exp,
+                                                                                          user_exp,
+                                                                                          author_exp,
+                                                                                          user_level,
+                                                                                          author_level)
+
+        if win_name == author_char_name:
+            winner_id = authorid
+        else:
+            winner_id = user.id
+
+        sql = (
+            'UPDATE character SET level = ?, exp = ? WHERE guild_id = ? AND user_id = ? AND character_name = ?')
+        val = (winner_level, winner_exp, ctx.guild.id, winner_id, win_name)
+
+        cursor.execute(sql, val)
+
+        if loser_name == author_char_name:
+            loser_id = authorid
+        else:
+            loser_id = user.id
+
+        sql = (
+            'UPDATE character SET level = ?, exp = ? WHERE guild_id = ? AND user_id = ? AND character_name = ?')
+        val = (loser_level, loser_exp, ctx.guild.id, loser_id, loser_name)
+
+        cursor.execute(sql, val)
+
+        sql = ('UPDATE player_gold SET gold = ? WHERE guild_id = ? AND user_id = ?')
+        val = (total_pot, ctx.guild.id, winner_id)
+
+        cursor.execute(sql, val)
+        db.commit()
+        cursor.close()
+        db.close()
+
+    elif user_health <= 0:
+        win_name, loser_name, winner_exp, loser_exp, winner_level, loser_level = win_loss(author_char_name,
+                                                                                          user_char_name,
+                                                                                          win_exp, loss_exp,
+                                                                                          author_exp,
+                                                                                          user_exp,
+                                                                                          author_level,
+                                                                                          user_level)
+
+        if win_name == author_char_name:
+            winner_id = authorid
+        else:
+            winner_id = user.id
+
+        sql = (
+            'UPDATE character SET level = ?, exp = ? WHERE guild_id = ? AND user_id = ? AND character_name = ?')
+        val = (winner_level, winner_exp, ctx.guild.id, winner_id, win_name)
+
+        cursor.execute(sql, val)
+
+        if loser_name == author_char_name:
+            loser_id = authorid
+        else:
+            loser_id = user.id
+
+        sql = (
+            'UPDATE character SET level = ?, exp = ? WHERE guild_id = ? AND user_id = ? AND character_name = ?')
+        val = (loser_level, loser_exp, ctx.guild.id, loser_id, loser_name)
+
+        cursor.execute(sql, val)
+
+        sql = ('UPDATE player_gold SET gold = ? WHERE guild_id = ? AND user_id = ?')
+        val = (total_pot, ctx.guild.id, winner_id)
+
+        cursor.execute(sql, val)
+        db.commit()
+        cursor.close()
+        db.close()
+
+
+
+
+
 
 
 ########################################################################################################################
@@ -4655,6 +6704,10 @@ async def reload_cog_error(ctx, error):
     else:
         await ctx.send('An error has occurred!')
 
+@client.command()
+async def seven_page_muda(ctx):
+    await ctx.send('''MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA, MUDA''')
+
 ########################################################################################################################
 #   OTHER IMPORTANT CODE                                                                                               #
 ########################################################################################################################
@@ -4663,4 +6716,4 @@ for filename in os.listdir('./cogs'):
     if filename.endswith('.py'):
         client.load_extension(f'cogs.{filename[:-3]}')
 
-client.run(TOKEN)
+client.run('TOKEN')
